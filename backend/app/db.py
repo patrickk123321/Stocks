@@ -89,9 +89,25 @@ def insert_rows(table: str, rows: list[dict]) -> int:
         return cursor.rowcount
 
 
-def query_rows(table: str, search_fields: list[str], q: str | None, date_field: str) -> list[dict]:
-    """Returns the most recent rows, optionally filtered by a single search term
-    matched against any of `search_fields` (ticker/name/company, depending on table)."""
+def query_rows(
+    table: str,
+    search_fields: list[str],
+    q: str | None,
+    date_field: str,
+    allowed_sort_fields: set[str],
+    sort: str | None = None,
+    order: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    """Returns a page of rows (most recent first by default), optionally filtered by a
+    single search term matched against any of `search_fields`, and sorted by `sort`
+    (falling back to `date_field` if `sort` isn't in `allowed_sort_fields` — this is
+    also what keeps the ORDER BY column safe to interpolate). Also returns the total
+    row count matching the filter, so the caller can page through results."""
+    sort_field = sort if sort in allowed_sort_fields else date_field
+    order_sql = "ASC" if order == "asc" else "DESC"
+
     where = ""
     params: dict = {}
     if q:
@@ -99,10 +115,12 @@ def query_rows(table: str, search_fields: list[str], q: str | None, date_field: 
         where = f"WHERE {' OR '.join(clauses)}"
         params["q"] = f"%{q}%"
 
-    sql = f"SELECT * FROM {table} {where} ORDER BY {date_field} DESC LIMIT 500"
+    count_sql = f"SELECT COUNT(*) FROM {table} {where}"
+    sql = f"SELECT * FROM {table} {where} ORDER BY {sort_field} {order_sql} LIMIT :limit OFFSET :offset"
     with get_conn() as conn:
-        rows = conn.execute(sql, params).fetchall()
-        return [dict(row) for row in rows]
+        total = conn.execute(count_sql, params).fetchone()[0]
+        rows = conn.execute(sql, {**params, "limit": limit, "offset": offset}).fetchall()
+        return [dict(row) for row in rows], total
 
 
 def table_is_empty(table: str) -> bool:

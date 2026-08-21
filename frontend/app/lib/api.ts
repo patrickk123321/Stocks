@@ -20,9 +20,28 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   }
 }
 
-export async function fetchTrades(category: Category, q: string): Promise<Record<string, unknown>[]> {
+export type SortOrder = "asc" | "desc";
+
+export interface TradesPage {
+  rows: Record<string, unknown>[];
+  total: number;
+}
+
+export interface FetchTradesOptions {
+  sort?: string;
+  order?: SortOrder;
+  limit?: number;
+  offset?: number;
+}
+
+export async function fetchTrades(category: Category, q: string, options: FetchTradesOptions = {}): Promise<TradesPage> {
+  const { sort, order, limit = 50, offset = 0 } = options;
   const params = new URLSearchParams();
   if (q) params.set("q", q);
+  if (sort) params.set("sort", sort);
+  if (order) params.set("order", order);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
 
   const res = await apiFetch(`/api/${category}?${params.toString()}`);
   if (!res.ok) {

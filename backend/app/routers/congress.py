@@ -6,11 +6,16 @@ from app.sources.congress_trades import refresh_congress_trades
 router = APIRouter(prefix="/api/congress", tags=["congress"])
 
 SEARCH_FIELDS = ["ticker", "member_name", "asset_description"]
+SORT_FIELDS = {
+    "member_name", "state_district", "ticker", "asset_description", "transaction_type",
+    "amount_range", "transaction_date",
+}
 
 
 @router.get("")
-def list_congress_trades(q: str | None = None):
-    return query_rows("congress_trades", SEARCH_FIELDS, q, "transaction_date")
+def list_congress_trades(q: str | None = None, sort: str | None = None, order: str = "desc", limit: int = 50, offset: int = 0):
+    rows, total = query_rows("congress_trades", SEARCH_FIELDS, q, "transaction_date", SORT_FIELDS, sort, order, limit, offset)
+    return {"rows": rows, "total": total}
 
 
 @router.post("/refresh")
