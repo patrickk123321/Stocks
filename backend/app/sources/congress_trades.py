@@ -18,6 +18,7 @@ as real-world filings turn up formats it doesn't handle.
 import io
 import re
 import zipfile
+from datetime import date, datetime
 import xml.etree.ElementTree as ET
 
 import httpx
@@ -119,10 +120,27 @@ def _parse_ptr_pdf(pdf_bytes: bytes) -> list[dict]:
     return rows
 
 
-def refresh_congress_trades(year: int, limit: int | None = None) -> int:
-    """Fetches House PTR filings for a given year and stores their trade rows."""
+def refresh_congress_trades(year: int, limit: int | None = None, since_date: str | None = None) -> int:
+    """Fetches House PTR filings for a given year and stores their trade rows.
+
+    `since_date` (ISO "YYYY-MM-DD") restricts to filings filed on/after that date —
+    used for the daily job so it doesn't re-download every PTR PDF for the year
+    on each run. Omit it for a full-year backfill.
+    """
     with _house_client() as client:
         entries = _fetch_ptr_index(year, client)
+
+        if since_date:
+            cutoff = date.fromisoformat(since_date)
+
+            def _filed_on_or_after_cutoff(entry: dict) -> bool:
+                try:
+                    return datetime.strptime(entry["filing_date"], "%m/%d/%Y").date() >= cutoff
+                except ValueError:
+                    return True  # keep unparseable dates rather than silently drop them
+
+            entries = [e for e in entries if _filed_on_or_after_cutoff(e)]
+
         if limit:
             entries = entries[:limit]
 

@@ -1,7 +1,8 @@
 "use client";
 
+import { ArrowsClockwise, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { Category, fetchTrades, refreshTrades } from "../lib/api";
+import { BackendUnreachableError, Category, fetchTrades, refreshTrades } from "../lib/api";
 
 interface Column {
   key: string;
@@ -10,36 +11,33 @@ interface Column {
 
 interface TradeTableProps {
   category: Category;
-  nameLabel: string;
-  tickerLabel: string;
+  searchPlaceholder: string;
   columns: Column[];
 }
 
-export default function TradeTable({ category, nameLabel, tickerLabel, columns }: TradeTableProps) {
+export default function TradeTable({ category, searchPlaceholder, columns }: TradeTableProps) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [ticker, setTicker] = useState("");
-  const [name, setName] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = async (q: string) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchTrades(category, { ticker, name, startDate, endDate });
+      const data = await fetchTrades(category, q);
       setRows(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load data");
+      setError(err instanceof BackendUnreachableError ? err.message : "Something went wrong loading this data.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    load();
+    setQuery("");
+    load("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
@@ -48,9 +46,9 @@ export default function TradeTable({ category, nameLabel, tickerLabel, columns }
     setError(null);
     try {
       await refreshTrades(category);
-      await load();
+      await load(query);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to refresh data");
+      setError(err instanceof BackendUnreachableError ? err.message : "Refresh failed — try again in a moment.");
     } finally {
       setRefreshing(false);
     }
@@ -58,65 +56,52 @@ export default function TradeTable({ category, nameLabel, tickerLabel, columns }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col text-sm text-zinc-600 dark:text-zinc-400">
-          {tickerLabel}
-          <input
-            className="rounded border border-zinc-300 px-2 py-1 text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[240px]">
+          <MagnifyingGlass
+            size={18}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
           />
-        </label>
-        <label className="flex flex-col text-sm text-zinc-600 dark:text-zinc-400">
-          {nameLabel}
           <input
-            className="rounded border border-zinc-300 px-2 py-1 text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && load(query)}
+            placeholder={searchPlaceholder}
+            className="w-full rounded-lg border border-border bg-card py-2.5 pl-10 pr-3 text-sm text-card-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/40"
           />
-        </label>
-        <label className="flex flex-col text-sm text-zinc-600 dark:text-zinc-400">
-          Start date
-          <input
-            type="date"
-            className="rounded border border-zinc-300 px-2 py-1 text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-        </label>
-        <label className="flex flex-col text-sm text-zinc-600 dark:text-zinc-400">
-          End date
-          <input
-            type="date"
-            className="rounded border border-zinc-300 px-2 py-1 text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-        </label>
+        </div>
         <button
-          onClick={load}
+          onClick={() => load(query)}
           disabled={loading}
-          className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
+          className="cursor-pointer rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "Searching..." : "Search"}
+          {loading ? "Searching…" : "Search"}
         </button>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="rounded border border-zinc-300 px-3 py-1.5 text-sm font-medium disabled:opacity-50 dark:border-zinc-700"
+          className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {refreshing ? "Refreshing..." : "Refresh from source"}
+          <ArrowsClockwise size={16} className={refreshing ? "animate-spin" : ""} aria-hidden="true" />
+          {refreshing ? "Refreshing…" : "Refresh now"}
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <WarningCircle size={18} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
 
-      <div className="overflow-x-auto rounded border border-zinc-200 dark:border-zinc-800">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-zinc-100 dark:bg-zinc-900">
+      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+        <table className="min-w-full text-left text-sm font-mono">
+          <thead className="bg-muted">
             <tr>
               {columns.map((col) => (
-                <th key={col.key} className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">
+                <th key={col.key} className="whitespace-nowrap px-4 py-3 font-sans font-medium text-muted-foreground">
                   {col.label}
                 </th>
               ))}
@@ -124,18 +109,18 @@ export default function TradeTable({ category, nameLabel, tickerLabel, columns }
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} className="border-t border-zinc-200 dark:border-zinc-800">
+              <tr key={i} className="border-t border-border transition-colors hover:bg-muted/50">
                 {columns.map((col) => (
-                  <td key={col.key} className="px-3 py-2 whitespace-nowrap">
+                  <td key={col.key} className="whitespace-nowrap px-4 py-3 text-card-foreground">
                     {String(row[col.key] ?? "")}
                   </td>
                 ))}
               </tr>
             ))}
-            {rows.length === 0 && !loading && (
+            {rows.length === 0 && !loading && !error && (
               <tr>
-                <td colSpan={columns.length} className="px-3 py-4 text-center text-zinc-500">
-                  No data yet — click &quot;Refresh from source&quot; to fetch the latest filings.
+                <td colSpan={columns.length} className="px-4 py-10 text-center font-sans text-muted-foreground">
+                  No results yet. The daily scrape runs at 9am — or click &quot;Refresh now&quot; to fetch the latest filings.
                 </td>
               </tr>
             )}

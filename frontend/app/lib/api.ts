@@ -2,21 +2,29 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
 
 export type Category = "insiders" | "institutions" | "congress";
 
-export interface Filters {
-  ticker?: string;
-  name?: string;
-  startDate?: string;
-  endDate?: string;
+export class BackendUnreachableError extends Error {
+  constructor() {
+    super(`Can't reach the backend at ${API_BASE} — make sure it's running.`);
+    this.name = "BackendUnreachableError";
+  }
 }
 
-export async function fetchTrades(category: Category, filters: Filters): Promise<Record<string, unknown>[]> {
-  const params = new URLSearchParams();
-  if (filters.ticker) params.set("ticker", filters.ticker);
-  if (filters.name) params.set("name", filters.name);
-  if (filters.startDate) params.set("start_date", filters.startDate);
-  if (filters.endDate) params.set("end_date", filters.endDate);
+async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${API_BASE}${path}`, init);
+  } catch {
+    // A native fetch() network error (connection refused, DNS failure, CORS
+    // block) throws a generic "Failed to fetch" TypeError with no useful
+    // detail — surface something actionable instead.
+    throw new BackendUnreachableError();
+  }
+}
 
-  const res = await fetch(`${API_BASE}/api/${category}?${params.toString()}`);
+export async function fetchTrades(category: Category, q: string): Promise<Record<string, unknown>[]> {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+
+  const res = await apiFetch(`/api/${category}?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch ${category}: ${res.status}`);
   }
@@ -25,7 +33,7 @@ export async function fetchTrades(category: Category, filters: Filters): Promise
 
 export async function refreshTrades(category: Category): Promise<{ inserted: number }> {
   const extra = category === "congress" ? `?year=${new Date().getFullYear()}` : "";
-  const res = await fetch(`${API_BASE}/api/${category}/refresh${extra}`, { method: "POST" });
+  const res = await apiFetch(`/api/${category}/refresh${extra}`, { method: "POST" });
   if (!res.ok) {
     throw new Error(`Failed to refresh ${category}: ${res.status}`);
   }

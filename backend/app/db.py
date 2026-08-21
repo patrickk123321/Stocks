@@ -89,26 +89,23 @@ def insert_rows(table: str, rows: list[dict]) -> int:
         return cursor.rowcount
 
 
-def query_rows(table: str, ticker_field: str | None, ticker: str | None,
-                name_field: str | None, name: str | None,
-                start_date: str | None, end_date: str | None, date_field: str) -> list[dict]:
-    clauses = []
+def query_rows(table: str, search_fields: list[str], q: str | None, date_field: str) -> list[dict]:
+    """Returns the most recent rows, optionally filtered by a single search term
+    matched against any of `search_fields` (ticker/name/company, depending on table)."""
+    where = ""
     params: dict = {}
-    if ticker and ticker_field:
-        clauses.append(f"{ticker_field} LIKE :ticker")
-        params["ticker"] = f"%{ticker}%"
-    if name and name_field:
-        clauses.append(f"{name_field} LIKE :name")
-        params["name"] = f"%{name}%"
-    if start_date:
-        clauses.append(f"{date_field} >= :start_date")
-        params["start_date"] = start_date
-    if end_date:
-        clauses.append(f"{date_field} <= :end_date")
-        params["end_date"] = end_date
+    if q:
+        clauses = [f"{field} LIKE :q" for field in search_fields]
+        where = f"WHERE {' OR '.join(clauses)}"
+        params["q"] = f"%{q}%"
 
-    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     sql = f"SELECT * FROM {table} {where} ORDER BY {date_field} DESC LIMIT 500"
     with get_conn() as conn:
         rows = conn.execute(sql, params).fetchall()
         return [dict(row) for row in rows]
+
+
+def table_is_empty(table: str) -> bool:
+    with get_conn() as conn:
+        row = conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
+        return row is None
