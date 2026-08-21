@@ -115,3 +115,65 @@ def test_query_all_rows_ignores_pagination_and_respects_cap(temp_db, monkeypatch
     ])
     rows = db.query_all_rows("insider_transactions", [], None, "transaction_date", set())
     assert len(rows) == 3  # capped, not the full 5 — export is a safety-capped dump, not true pagination
+
+
+def _holding(accession_no, filer_cik, cusip, period, shares, value=1000.0):
+    return {
+        "accession_no": accession_no, "filer_cik": filer_cik, "filer_name": "Acme Capital",
+        "cusip": cusip, "issuer_name": "Some Corp", "period_of_report": period,
+        "shares": shares, "value": value,
+    }
+
+
+def test_position_changes_detects_new_exited_and_changed(temp_db):
+    db.insert_rows("institutional_holdings", [
+        # prior period: holds AAA (100 sh) and BBB (200 sh)
+        _holding("acc-1", "111", "AAA", "2026-03-31", 100),
+        _holding("acc-1", "111", "BBB", "2026-03-31", 200),
+        # latest period: AAA grew to 150 (CHANGED), BBB gone (EXITED), CCC appears (NEW)
+        _holding("acc-2", "111", "AAA", "2026-06-30", 150),
+        _holding("acc-2", "111", "CCC", "2026-06-30", 300),
+    ])
+    changes, total = db.get_position_changes()
+    by_cusip_type = {(c["cusip"], c["change_type"]) for c in changes}
+    assert ("CCC", "NEW") in by_cusip_type
+    assert ("BBB", "EXITED") in by_cusip_type
+    assert ("AAA", "CHANGED") in by_cusip_type
+    assert total == 3
+
+    changed = next(c for c in changes if c["cusip"] == "AAA")
+    assert changed["prior_shares"] == 100
+    assert changed["pct_change"] == 50.0  # (150 - 100) / 100 * 100
+
+
+def test_position_changes_requires_at_least_two_periods(temp_db):
+    db.insert_rows("institutional_holdings", [
+        _holding("acc-1", "222", "AAA", "2026-03-31", 100),
+    ])
+    changes, total = db.get_position_changes()
+    assert changes == []
+    assert total == 0
+
+
+def test_position_changes_unchanged_holding_is_not_reported(temp_db):
+    db.insert_rows("institutional_holdings", [
+        _holding("acc-1", "333", "AAA", "2026-03-31", 100),
+        _holding("acc-2", "333", "AAA", "2026-06-30", 100),
+    ])
+    changes, _ = db.get_position_changes()
+    assert changes == []
+
+
+def test_position_changes_filter_by_type(temp_db):
+    db.insert_rows("institutional_holdings", [
+        _holding("acc-1", "444", "AAA", "2026-03-31", 100),
+        _holding("acc-2", "444", "AAA", "2026-06-30", 150),
+        _holding("acc-3", "444", "BBB", "2026-06-30", 50),
+    ])
+    changed_only, total = db.get_position_changes(change_type="CHANGED")
+    assert total == 1
+    assert changed_only[0]["change_type"] == "CHANGED"
+
+    new_only, total = db.get_position_changes(change_type="NEW")
+    assert total == 1
+    assert new_only[0]["change_type"] == "NEW"

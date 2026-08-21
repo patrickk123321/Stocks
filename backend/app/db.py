@@ -245,3 +245,62 @@ def get_last_scrape_run(category: str) -> dict | None:
             {"category": category},
         ).fetchone()
         return dict(row) if row else None
+
+
+def get_position_changes(change_type: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+    """Diffs each institutional filer's two most recent reporting periods to surface
+    NEW positions, EXITED positions, and %-change on continued holdings — entirely
+    derived from institutional_holdings rows already stored (no new scraping). A
+    13F only lists an institution's CURRENT holdings, so a filer needs at least two
+    distinct period_of_report values on file before it has anything to compare.
+
+    `change_type`, if given, filters to one of "NEW" / "EXITED" / "CHANGED".
+    Results are sorted by position size (value) for NEW/EXITED, or by the
+    magnitude of the swing for CHANGED — "biggest movers first" either way.
+    """
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT filer_cik, filer_name, cusip, issuer_name, period_of_report, shares, value, accession_no "
+            "FROM institutional_holdings WHERE filer_cik IS NOT NULL AND cusip IS NOT NULL AND period_of_report IS NOT NULL"
+        ).fetchall()
+
+    by_filer: dict[str, dict[str, dict[str, dict]]] = {}
+    for row in rows:
+        by_filer.setdefault(row["filer_cik"], {}).setdefault(row["period_of_report"], {})[row["cusip"]] = dict(row)
+
+    changes: list[dict] = []
+    for periods in by_filer.values():
+        sorted_periods = sorted(periods.keys(), reverse=True)
+        if len(sorted_periods) < 2:
+            continue
+        latest, prior = periods[sorted_periods[0]], periods[sorted_periods[1]]
+
+        for cusip, current in latest.items():
+            previous = prior.get(cusip)
+            if previous is None:
+                changes.append({**current, "change_type": "NEW", "prior_shares": None, "pct_change": None})
+                continue
+            prior_shares = previous.get("shares") or 0
+            current_shares = current.get("shares") or 0
+            if prior_shares and current_shares != prior_shares:
+                pct = round((current_shares - prior_shares) / prior_shares * 100, 1)
+                changes.append({**current, "change_type": "CHANGED", "prior_shares": prior_shares, "pct_change": pct})
+
+        for cusip, previous in prior.items():
+            if cusip not in latest:
+                changes.append({
+                    **previous, "change_type": "EXITED",
+                    "prior_shares": previous.get("shares"), "pct_change": None,
+                })
+
+    if change_type:
+        changes = [c for c in changes if c["change_type"] == change_type]
+
+    def sort_key(c: dict) -> float:
+        if c["change_type"] == "CHANGED":
+            return abs(c["pct_change"] or 0)
+        return c.get("value") or 0
+
+    changes.sort(key=sort_key, reverse=True)
+    total = len(changes)
+    return changes[offset:offset + limit], total

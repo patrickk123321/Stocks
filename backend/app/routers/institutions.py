@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from app.csv_export import rows_to_csv
-from app.db import query_all_rows, query_rows, record_scrape_run
+from app.db import get_position_changes, query_all_rows, query_rows, record_scrape_run
 from app.sources.edgar_13f import refresh_13f
 from app.sources.edgar_common import filing_index_url
 
@@ -68,6 +68,14 @@ def export_institutional_holdings(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=institutional_holdings.csv"},
     )
+
+
+@router.get("/changes")
+def list_position_changes(change_type: str | None = None, limit: int = 50, offset: int = 0):
+    """NEW / EXITED / CHANGED institutional positions, derived by diffing each
+    filer's two most recent 13F periods — see db.get_position_changes."""
+    rows, total = get_position_changes(change_type, limit, offset)
+    return {"rows": _attach_source_url(rows), "total": total}
 
 
 @router.post("/refresh")

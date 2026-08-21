@@ -101,3 +101,21 @@ export async function fetchStatus(): Promise<Record<Category, ScrapeStatus | nul
   }
   return res.json();
 }
+
+export type PositionChangeType = "NEW" | "EXITED" | "CHANGED";
+
+export async function fetchPositionChanges(
+  changeType: PositionChangeType | undefined,
+  limit: number,
+  offset: number,
+): Promise<TradesPage> {
+  const params = new URLSearchParams();
+  if (changeType) params.set("change_type", changeType);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  const res = await apiFetch(`/api/institutions/changes?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch position changes: ${res.status}`);
+  }
+  return res.json();
+}

@@ -2,6 +2,7 @@
 
 import { Bank, Buildings, UserCircle } from "@phosphor-icons/react";
 import { useState } from "react";
+import PositionChanges from "../components/PositionChanges";
 import TradeTable, { SummaryConfig } from "../components/TradeTable";
 import { Category } from "../lib/api";
 
@@ -112,8 +113,11 @@ const SUMMARY: Record<Category, SummaryConfig> = {
   },
 };
 
+type InstitutionsView = "holdings" | "changes";
+
 export default function TradeTrackerPage() {
   const [activeTab, setActiveTab] = useState<Category>("insiders");
+  const [institutionsView, setInstitutionsView] = useState<InstitutionsView>("holdings");
 
   return (
     <div className="flex flex-1 flex-col">
@@ -144,13 +148,35 @@ export default function TradeTrackerPage() {
           })}
         </div>
 
-        <TradeTable
-          category={activeTab}
-          searchPlaceholder={SEARCH_PLACEHOLDERS[activeTab]}
-          columns={COLUMNS[activeTab]}
-          summary={SUMMARY[activeTab]}
-          emptyIcon={TABS.find((tab) => tab.key === activeTab)!.icon}
-        />
+        {activeTab === "institutions" && (
+          <div className="flex gap-1.5 border-b border-border">
+            {(["holdings", "changes"] as const).map((view) => (
+              <button
+                key={view}
+                onClick={() => setInstitutionsView(view)}
+                className={`cursor-pointer border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                  institutionsView === view
+                    ? "border-warning text-warning"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {view === "holdings" ? "All Holdings" : "Position Changes"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {activeTab === "institutions" && institutionsView === "changes" ? (
+          <PositionChanges />
+        ) : (
+          <TradeTable
+            category={activeTab}
+            searchPlaceholder={SEARCH_PLACEHOLDERS[activeTab]}
+            columns={COLUMNS[activeTab]}
+            summary={SUMMARY[activeTab]}
+            emptyIcon={TABS.find((tab) => tab.key === activeTab)!.icon}
+          />
+        )}
       </main>
     </div>
   );
