@@ -42,14 +42,28 @@ export interface FetchTradesOptions {
   order?: SortOrder;
   limit?: number;
   offset?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  actor?: string;
+  ticker?: string;
 }
 
-export async function fetchTrades(category: Category, q: string, options: FetchTradesOptions = {}): Promise<TradesPage> {
-  const { sort, order, limit = 50, offset = 0 } = options;
+function buildTradesParams(q: string, options: FetchTradesOptions): URLSearchParams {
+  const { sort, order, dateFrom, dateTo, actor, ticker } = options;
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (sort) params.set("sort", sort);
   if (order) params.set("order", order);
+  if (dateFrom) params.set("date_from", dateFrom);
+  if (dateTo) params.set("date_to", dateTo);
+  if (actor) params.set("actor", actor);
+  if (ticker) params.set("ticker", ticker);
+  return params;
+}
+
+export async function fetchTrades(category: Category, q: string, options: FetchTradesOptions = {}): Promise<TradesPage> {
+  const { limit = 50, offset = 0 } = options;
+  const params = buildTradesParams(q, options);
   params.set("limit", String(limit));
   params.set("offset", String(offset));
 
@@ -58,6 +72,11 @@ export async function fetchTrades(category: Category, q: string, options: FetchT
     throw new Error(`Failed to fetch ${category}: ${res.status}`);
   }
   return res.json();
+}
+
+export function buildExportUrl(category: Category, q: string, options: FetchTradesOptions = {}): string {
+  const params = buildTradesParams(q, options);
+  return `${API_BASE}/api/${category}/export?${params.toString()}`;
 }
 
 export async function refreshTrades(category: Category): Promise<{ inserted: number; errors: number }> {

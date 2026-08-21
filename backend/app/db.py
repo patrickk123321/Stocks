@@ -125,6 +125,39 @@ def insert_rows(table: str, rows: list[dict]) -> int:
         return cursor.rowcount
 
 
+def _build_where(
+    search_fields: list[str],
+    q: str | None,
+    date_field: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    exact: dict[str, str] | None = None,
+) -> tuple[str, dict]:
+    """Builds a WHERE clause + params shared by query_rows and query_all_rows, so
+    the two never drift apart on how filters are interpreted. `exact` keys are
+    trusted column names supplied by caller code (routers pass a fixed, known
+    column per category — never a raw client-controlled column name)."""
+    clauses = []
+    params: dict = {}
+
+    if q:
+        clauses.append("(" + " OR ".join(f"{field} LIKE :q" for field in search_fields) + ")")
+        params["q"] = f"%{q}%"
+    if date_from:
+        clauses.append(f"{date_field} >= :date_from")
+        params["date_from"] = date_from
+    if date_to:
+        clauses.append(f"{date_field} <= :date_to")
+        params["date_to"] = date_to
+    for column, value in (exact or {}).items():
+        param_name = f"exact_{column}"
+        clauses.append(f"{column} = :{param_name}")
+        params[param_name] = value
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    return where, params
+
+
 def query_rows(
     table: str,
     search_fields: list[str],
@@ -135,21 +168,20 @@ def query_rows(
     order: str = "desc",
     limit: int = 50,
     offset: int = 0,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    exact: dict[str, str] | None = None,
 ) -> tuple[list[dict], int]:
     """Returns a page of rows (most recent first by default), optionally filtered by a
-    single search term matched against any of `search_fields`, and sorted by `sort`
-    (falling back to `date_field` if `sort` isn't in `allowed_sort_fields` — this is
-    also what keeps the ORDER BY column safe to interpolate). Also returns the total
+    single search term matched against any of `search_fields`, an inclusive date-range
+    on `date_field`, and/or an exact-match filter (`exact`, e.g. {"owner_name": "Jane Doe"}
+    for a precise entity drill-down rather than a fuzzy `q` substring match). Sorted by
+    `sort` (falling back to `date_field` if `sort` isn't in `allowed_sort_fields` — this
+    is also what keeps the ORDER BY column safe to interpolate). Also returns the total
     row count matching the filter, so the caller can page through results."""
     sort_field = sort if sort in allowed_sort_fields else date_field
     order_sql = "ASC" if order == "asc" else "DESC"
-
-    where = ""
-    params: dict = {}
-    if q:
-        clauses = [f"{field} LIKE :q" for field in search_fields]
-        where = f"WHERE {' OR '.join(clauses)}"
-        params["q"] = f"%{q}%"
+    where, params = _build_where(search_fields, q, date_field, date_from, date_to, exact)
 
     count_sql = f"SELECT COUNT(*) FROM {table} {where}"
     sql = f"SELECT * FROM {table} {where} ORDER BY {sort_field} {order_sql} LIMIT :limit OFFSET :offset"
@@ -157,6 +189,34 @@ def query_rows(
         total = conn.execute(count_sql, params).fetchone()[0]
         rows = conn.execute(sql, {**params, "limit": limit, "offset": offset}).fetchall()
         return [dict(row) for row in rows], total
+
+
+EXPORT_ROW_CAP = 20_000
+
+
+def query_all_rows(
+    table: str,
+    search_fields: list[str],
+    q: str | None,
+    date_field: str,
+    allowed_sort_fields: set[str],
+    sort: str | None = None,
+    order: str = "desc",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    exact: dict[str, str] | None = None,
+) -> list[dict]:
+    """Same filters as query_rows but returns every matching row (up to
+    EXPORT_ROW_CAP, as a sane ceiling rather than true pagination) — used for
+    CSV export, where a partial page would silently misrepresent the data."""
+    sort_field = sort if sort in allowed_sort_fields else date_field
+    order_sql = "ASC" if order == "asc" else "DESC"
+    where, params = _build_where(search_fields, q, date_field, date_from, date_to, exact)
+
+    sql = f"SELECT * FROM {table} {where} ORDER BY {sort_field} {order_sql} LIMIT :limit"
+    with get_conn() as conn:
+        rows = conn.execute(sql, {**params, "limit": EXPORT_ROW_CAP}).fetchall()
+        return [dict(row) for row in rows]
 
 
 def table_is_empty(table: str) -> bool:

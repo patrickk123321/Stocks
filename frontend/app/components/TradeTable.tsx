@@ -6,12 +6,24 @@ import {
   CaretDown,
   CaretUp,
   Database,
+  DownloadSimple,
   MagnifyingGlass,
   ShieldCheck,
   WarningCircle,
+  X,
 } from "@phosphor-icons/react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BackendUnreachableError, Category, ScrapeStatus, fetchStatus, fetchTrades, refreshTrades, SortOrder } from "../lib/api";
+import {
+  BackendUnreachableError,
+  Category,
+  ScrapeStatus,
+  buildExportUrl,
+  fetchStatus,
+  fetchTrades,
+  refreshTrades,
+  SortOrder,
+} from "../lib/api";
 import { badge, badgeLabel, badgeTone, formatMeta, formatRelativeTime, renderCell } from "../lib/tradeFormat";
 import StatTiles from "./StatTiles";
 
@@ -43,16 +55,25 @@ interface TradeTableProps {
   emptyIcon?: typeof Database;
 }
 
+interface Filters {
+  q: string;
+  sort: string | undefined;
+  order: SortOrder;
+  dateFrom: string;
+  dateTo: string;
+  actor: string | null;
+}
+
 const PAGE_SIZE = 50;
 const SKELETON_ROWS = 8;
 const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50";
+const DEFAULT_FILTERS: Filters = { q: "", sort: undefined, order: "desc", dateFrom: "", dateTo: "", actor: null };
 
 export default function TradeTable({ category, searchPlaceholder, columns, summary, emptyIcon: EmptyIcon = Database }: TradeTableProps) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<string | undefined>(undefined);
-  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -70,12 +91,21 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
     }
   };
 
-  const load = async (q: string, sort: string | undefined, order: SortOrder) => {
+  const load = async (next: Filters) => {
     setLoading(true);
     setError(null);
     setExpanded(null);
+    setFilters(next);
     try {
-      const page = await fetchTrades(category, q, { sort, order, limit: PAGE_SIZE, offset: 0 });
+      const page = await fetchTrades(category, next.q, {
+        sort: next.sort,
+        order: next.order,
+        limit: PAGE_SIZE,
+        offset: 0,
+        dateFrom: next.dateFrom || undefined,
+        dateTo: next.dateTo || undefined,
+        actor: next.actor || undefined,
+      });
       setRows(page.rows);
       setTotal(page.total);
       setLoadToken((t) => t + 1);
@@ -90,7 +120,15 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
     setLoadingMore(true);
     setError(null);
     try {
-      const page = await fetchTrades(category, query, { sort: sortKey, order: sortOrder, limit: PAGE_SIZE, offset: rows.length });
+      const page = await fetchTrades(category, filters.q, {
+        sort: filters.sort,
+        order: filters.order,
+        limit: PAGE_SIZE,
+        offset: rows.length,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        actor: filters.actor || undefined,
+      });
       setRows((prev) => [...prev, ...page.rows]);
       setTotal(page.total);
     } catch (err) {
@@ -102,30 +140,24 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
 
   useEffect(() => {
     setQuery("");
-    setSortKey(undefined);
-    setSortOrder("desc");
-    load("", undefined, "desc");
+    load(DEFAULT_FILTERS);
     refreshStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
-  const handleSortKeyChange = (key: string | undefined) => {
-    setSortKey(key);
-    load(query, key, sortOrder);
+  const handleActorClick = (actor: string) => {
+    setQuery("");
+    load({ ...filters, q: "", actor });
   };
 
-  const handleToggleOrder = () => {
-    const nextOrder: SortOrder = sortOrder === "desc" ? "asc" : "desc";
-    setSortOrder(nextOrder);
-    load(query, sortKey, nextOrder);
-  };
+  const handleClearActor = () => load({ ...filters, actor: null });
 
   const handleRefresh = async () => {
     setRefreshing(true);
     setError(null);
     try {
       await refreshTrades(category);
-      await load(query, sortKey, sortOrder);
+      await load(filters);
       await refreshStatus();
     } catch (err) {
       setError(err instanceof BackendUnreachableError ? err.message : "Refresh failed — try again in a moment.");
@@ -133,6 +165,14 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       setRefreshing(false);
     }
   };
+
+  const exportUrl = buildExportUrl(category, filters.q, {
+    sort: filters.sort,
+    order: filters.order,
+    dateFrom: filters.dateFrom || undefined,
+    dateTo: filters.dateTo || undefined,
+    actor: filters.actor || undefined,
+  });
 
   return (
     <div className="flex flex-col gap-3">
@@ -147,14 +187,14 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && load(query, sortKey, sortOrder)}
+            onKeyDown={(e) => e.key === "Enter" && load({ ...filters, q: query })}
             placeholder={searchPlaceholder}
             className="w-full rounded-lg border border-border bg-card py-2.5 pl-10 pr-3 text-base text-card-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/40 sm:text-sm"
           />
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => load(query, sortKey, sortOrder)}
+            onClick={() => load({ ...filters, q: query })}
             disabled={loading}
             className={`flex-1 cursor-pointer rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
           >
@@ -169,6 +209,54 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             {refreshing ? "Refreshing…" : "Refresh now"}
           </button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5 text-xs">
+          <label htmlFor={`date-from-${category}`} className="text-muted-foreground">
+            From
+          </label>
+          <input
+            id={`date-from-${category}`}
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => load({ ...filters, dateFrom: e.target.value })}
+            className={`cursor-pointer rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+          />
+        </div>
+        <div className="flex items-center gap-1.5 text-xs">
+          <label htmlFor={`date-to-${category}`} className="text-muted-foreground">
+            To
+          </label>
+          <input
+            id={`date-to-${category}`}
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => load({ ...filters, dateTo: e.target.value })}
+            className={`cursor-pointer rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+          />
+        </div>
+
+        {filters.actor && (
+          <span className="flex items-center gap-1.5 rounded-full bg-accent/15 py-1 pl-3 pr-1.5 text-xs font-medium text-accent">
+            {summary.actorLabel}: {filters.actor}
+            <button
+              onClick={handleClearActor}
+              aria-label={`Clear filter for ${filters.actor}`}
+              className={`flex h-4 w-4 cursor-pointer items-center justify-center rounded-full hover:bg-accent/20 ${FOCUS_RING}`}
+            >
+              <X size={10} weight="bold" aria-hidden="true" />
+            </button>
+          </span>
+        )}
+
+        <a
+          href={exportUrl}
+          className={`ml-auto flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted ${FOCUS_RING}`}
+        >
+          <DownloadSimple size={13} aria-hidden="true" />
+          Export CSV
+        </a>
       </div>
 
       {!loading && !error && rows.length > 0 && <StatTiles total={total} rows={rows} summary={summary} />}
@@ -200,8 +288,8 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           </label>
           <select
             id={`sort-${category}`}
-            value={sortKey ?? ""}
-            onChange={(e) => handleSortKeyChange(e.target.value || undefined)}
+            value={filters.sort ?? ""}
+            onChange={(e) => load({ ...filters, sort: e.target.value || undefined })}
             className={`cursor-pointer rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
           >
             <option value="">Most recent</option>
@@ -212,11 +300,11 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             ))}
           </select>
           <button
-            onClick={handleToggleOrder}
-            aria-label={sortOrder === "asc" ? "Sort descending" : "Sort ascending"}
+            onClick={() => load({ ...filters, order: filters.order === "desc" ? "asc" : "desc" })}
+            aria-label={filters.order === "asc" ? "Sort descending" : "Sort ascending"}
             className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
           >
-            {sortOrder === "asc" ? <CaretUp size={13} aria-hidden="true" /> : <CaretDown size={13} aria-hidden="true" />}
+            {filters.order === "asc" ? <CaretUp size={13} aria-hidden="true" /> : <CaretDown size={13} aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -242,7 +330,9 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
               <EmptyIcon size={22} aria-hidden="true" />
             </div>
             <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-              No results yet. The daily scrape runs at 9am — or click &quot;Refresh now&quot; to fetch the latest filings.
+              {filters.actor || filters.dateFrom || filters.dateTo
+                ? "No results match these filters."
+                : 'No results yet. The daily scrape runs at 9am — or click "Refresh now" to fetch the latest filings.'}
             </p>
           </div>
         ) : (
@@ -250,6 +340,9 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             const isOpen = expanded === i;
             const actor = String(row[summary.actorKey] ?? "Unknown");
             const ticker = summary.targetTickerKey ? String(row[summary.targetTickerKey] ?? "") : "";
+            // Institutions' "ticker" slot is actually a CUSIP (13F filings don't report
+            // ticker symbols) — only link to the cross-category ticker page for real tickers.
+            const tickerLinks = summary.targetTickerKey !== "cusip";
             const targetName = String(row[summary.targetNameKey] ?? "");
             const badgeValue = summary.badgeKey ? String(row[summary.badgeKey] ?? "") : "";
             const sourceUrl = row.source_url ? String(row.source_url) : null;
@@ -261,10 +354,20 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             const rowKey = `${loadToken}-${i}`;
             const panelId = `trade-row-panel-${category}-${rowKey}`;
 
+            const toggleExpand = () => setExpanded(isOpen ? null : i);
+
             return (
               <div key={rowKey} role="listitem">
-                <button
-                  onClick={() => setExpanded(isOpen ? null : i)}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={toggleExpand}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleExpand();
+                    }
+                  }}
                   aria-expanded={isOpen}
                   aria-controls={panelId}
                   className={`group relative flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/50 animate-fade-up ${FOCUS_RING} ${
@@ -281,9 +384,30 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                   <div className="flex min-w-0 items-center gap-3">
                     {badgeValue && badge(badgeLabel(summary.badgeKey!, badgeValue), badgeTone(summary.badgeKey!, badgeValue))}
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-card-foreground">{actor}</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleActorClick(actor);
+                        }}
+                        title={`Show only ${actor}'s ${summary.actorLabel.toLowerCase()} activity`}
+                        className={`truncate text-left text-sm font-medium text-card-foreground hover:text-accent hover:underline ${FOCUS_RING} rounded`}
+                      >
+                        {actor}
+                      </button>
                       <p className="truncate font-mono text-xs text-muted-foreground">
-                        {ticker && <span className="font-semibold text-foreground">{ticker}</span>}
+                        {ticker &&
+                          (tickerLinks ? (
+                            <Link
+                              href={`/ticker/${encodeURIComponent(ticker)}`}
+                              onClick={(e) => e.stopPropagation()}
+                              title={`See everything tracked for ${ticker}`}
+                              className={`font-semibold text-foreground hover:text-accent hover:underline ${FOCUS_RING} rounded`}
+                            >
+                              {ticker}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold text-foreground">{ticker}</span>
+                          ))}
                         {ticker && targetName ? " · " : ""}
                         {targetName}
                       </p>
@@ -304,7 +428,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                       aria-hidden="true"
                     />
                   </div>
-                </button>
+                </div>
 
                 {isOpen && (
                   <div id={panelId} role="region" className="border-t border-border bg-background/40 px-4 py-4">

@@ -76,3 +76,42 @@ def test_scrape_run_tracking(temp_db):
     last = db.get_last_scrape_run("insiders")
     assert last["inserted"] == 5
     assert last["error_count"] == 1
+
+
+def test_query_rows_exact_filter_is_precise_not_fuzzy(temp_db):
+    """The `exact` filter backs entity drill-down (click a name to see only their
+    rows) — it must not fuzzy-match the way `q` does, or clicking "Jane Doe" could
+    also pull in an unrelated "Jane Doelittle"."""
+    db.insert_rows("insider_transactions", [
+        {"accession_no": "1", "owner_name": "Jane Doe", "transaction_date": "2026-01-01"},
+        {"accession_no": "2", "owner_name": "Jane Doelittle", "transaction_date": "2026-01-02"},
+    ])
+    rows, total = db.query_rows(
+        "insider_transactions", [], None, "transaction_date", set(),
+        limit=10, offset=0, exact={"owner_name": "Jane Doe"},
+    )
+    assert total == 1
+    assert rows[0]["owner_name"] == "Jane Doe"
+
+
+def test_query_rows_date_range_is_inclusive(temp_db):
+    db.insert_rows("insider_transactions", [
+        {"accession_no": "1", "transaction_date": "2026-01-01"},
+        {"accession_no": "2", "transaction_date": "2026-01-15"},
+        {"accession_no": "3", "transaction_date": "2026-01-31"},
+    ])
+    rows, total = db.query_rows(
+        "insider_transactions", [], None, "transaction_date", set(),
+        limit=10, offset=0, date_from="2026-01-01", date_to="2026-01-15",
+    )
+    assert total == 2
+    assert {r["accession_no"] for r in rows} == {"1", "2"}
+
+
+def test_query_all_rows_ignores_pagination_and_respects_cap(temp_db, monkeypatch):
+    monkeypatch.setattr(db, "EXPORT_ROW_CAP", 3)
+    db.insert_rows("insider_transactions", [
+        {"accession_no": str(i), "transaction_date": f"2026-01-{i:02d}"} for i in range(1, 6)
+    ])
+    rows = db.query_all_rows("insider_transactions", [], None, "transaction_date", set())
+    assert len(rows) == 3  # capped, not the full 5 — export is a safety-capped dump, not true pagination
