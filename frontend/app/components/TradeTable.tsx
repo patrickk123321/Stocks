@@ -32,6 +32,12 @@ interface Column {
   label: string;
 }
 
+export interface RowSource {
+  label: string;
+  note: string;
+  verified: boolean;
+}
+
 export interface SummaryConfig {
   actorLabel: string;
   actorKey: string;
@@ -45,6 +51,9 @@ export interface SummaryConfig {
   sourceLabel: string;
   sourceNote: string;
   sourceVerified: boolean;
+  /** Overrides sourceLabel/sourceNote/sourceVerified per row when a category mixes
+   * sources of differing reliability (e.g. congress: House PDF vs. Senate via FMP). */
+  sourceFor?: (row: Record<string, unknown>) => RowSource;
 }
 
 interface TradeTableProps {
@@ -353,6 +362,12 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             // without replaying every time a row is merely toggled open or closed.
             const rowKey = `${loadToken}-${i}`;
             const panelId = `trade-row-panel-${category}-${rowKey}`;
+            const chamber = typeof row.chamber === "string" ? row.chamber : null;
+            const rowSource = summary.sourceFor?.(row) ?? {
+              label: summary.sourceLabel,
+              note: summary.sourceNote,
+              verified: summary.sourceVerified,
+            };
 
             const toggleExpand = () => setExpanded(isOpen ? null : i);
 
@@ -414,6 +429,11 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-4">
+                    {chamber && (
+                      <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground sm:inline">
+                        {chamber}
+                      </span>
+                    )}
                     <div className="hidden text-right sm:block">
                       {summary.metaKey && (
                         <p className="font-mono text-xs text-card-foreground">
@@ -441,7 +461,15 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                       ))}
                     </dl>
                     <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="max-w-md text-xs text-muted-foreground">{summary.sourceNote}</p>
+                      <div className="flex max-w-md flex-col gap-1">
+                        <span
+                          className={`flex items-center gap-1 text-xs font-medium ${rowSource.verified ? "text-positive" : "text-warning"}`}
+                        >
+                          {rowSource.verified && <ShieldCheck size={12} weight="fill" aria-hidden="true" />}
+                          {rowSource.label}
+                        </span>
+                        <p className="text-xs text-muted-foreground">{rowSource.note}</p>
+                      </div>
                       {sourceUrl ? (
                         <a
                           href={sourceUrl}

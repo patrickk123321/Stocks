@@ -52,8 +52,9 @@ const COLUMNS: Record<Category, { key: string; label: string }[]> = {
     { key: "period_of_report", label: "Period" },
   ],
   congress: [
+    { key: "chamber", label: "Chamber" },
     { key: "member_name", label: "Member" },
-    { key: "state_district", label: "District" },
+    { key: "state_district", label: "State/District" },
     { key: "ticker", label: "Ticker" },
     { key: "asset_description", label: "Asset" },
     { key: "transaction_type", label: "Type" },
@@ -106,10 +107,27 @@ const SUMMARY: Record<Category, SummaryConfig> = {
     dateKey: "transaction_date",
     metaKey: "amount_range",
     metaLabel: "Amount",
-    sourceLabel: "House Clerk PDF — auto-extracted",
+    // House and Senate rows come from genuinely different sources with different
+    // reliability — sourceFor gives each row its own accurate label instead of
+    // papering over the difference with one generic category-level claim.
+    sourceLabel: "House Clerk PDF + Senate via Financial Modeling Prep",
     sourceNote:
-      "The House Clerk only publishes these as PDFs, so fields are extracted with a best-effort parser rather than read from structured data. Use \"View original filing\" to confirm any row against the source PDF.",
+      "House rows are auto-extracted from House Clerk PDFs; Senate rows come via a third-party API (efdsearch.senate.gov blocks direct automated access). Expand a row for its specific source.",
     sourceVerified: false,
+    sourceFor: (row) =>
+      row.chamber === "senate"
+        ? {
+            label: "Financial Modeling Prep — Senate disclosure",
+            note:
+              "efdsearch.senate.gov blocks direct automated access, so this is read via a third-party API rather than the primary source directly — but the link below points to the actual Senate filing page for verification.",
+            verified: false,
+          }
+        : {
+            label: "House Clerk PDF — auto-extracted",
+            note:
+              "The House Clerk only publishes these as PDFs, so fields are extracted with a best-effort parser rather than read from structured data. Use \"View original filing\" to confirm any row against the source PDF.",
+            verified: false,
+          },
   },
 };
 

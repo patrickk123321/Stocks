@@ -6,9 +6,9 @@ Verified live: https://disclosures-clerk.house.gov/public_disc/financial-pdfs/{y
 is an XML index of every filing; PTR filings (FilingType == "P") link to a PDF at
 https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/{year}/{DocID}.pdf
 
-Senate trades are NOT included yet: efdsearch.senate.gov blocks non-browser
-requests (Akamai bot protection returns 403), so it needs a real session/cookie
-flow to access — left as a follow-up rather than working around the block here.
+Senate trades are handled separately, in sibling module senate_trades.py, via
+a third-party API rather than scraping efdsearch.senate.gov directly (see that
+module's docstring for why).
 
 PTR PDFs are semi-structured (not a real data table), so row extraction below
 is a best-effort regex over pdfplumber's extracted text. Expect to refine this
@@ -27,6 +27,7 @@ import pdfplumber
 
 from app.config import HOUSE_CLERK_USER_AGENT
 from app.db import insert_rows
+from app.sources.senate_trades import FmpNotConfiguredError, refresh_senate_trades
 
 logger = logging.getLogger("stocks.sources.congress_trades")
 
@@ -208,3 +209,32 @@ def refresh_congress_trades(year: int, limit: int | None = None, since_date: str
             ]
             total_inserted += insert_rows("congress_trades", rows)
         return total_inserted, error_count
+
+
+def refresh_all_congress_trades(year: int, limit: int | None = None, since_date: str | None = None) -> tuple[int, int]:
+    """Runs both the House PTR refresh (above) and the Senate refresh
+    (senate_trades.py), combined into one result — the two chambers share a
+    single Congress tab/tracked category in the rest of the app, and one
+    chamber failing shouldn't stop the other from inserting its rows."""
+    total_inserted = 0
+    total_errors = 0
+
+    try:
+        inserted, errors = refresh_congress_trades(year=year, limit=limit, since_date=since_date)
+        total_inserted += inserted
+        total_errors += errors
+    except Exception:
+        logger.exception("House congress refresh failed")
+        total_errors += 1
+
+    try:
+        inserted, errors = refresh_senate_trades()
+        total_inserted += inserted
+        total_errors += errors
+    except FmpNotConfiguredError:
+        logger.info("Senate refresh skipped — FMP_API_KEY not configured")
+    except Exception:
+        logger.exception("Senate congress refresh failed")
+        total_errors += 1
+
+    return total_inserted, total_errors

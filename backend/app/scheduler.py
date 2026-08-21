@@ -5,7 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.db import record_scrape_run, table_is_empty
-from app.sources.congress_trades import refresh_congress_trades
+from app.sources.congress_trades import refresh_all_congress_trades
 from app.sources.edgar_13f import refresh_13f
 from app.sources.edgar_form4 import refresh_form4
 
@@ -32,14 +32,14 @@ def backfill_if_empty() -> None:
     if table_is_empty("institutional_holdings"):
         _run_refresh("institutions", refresh_13f, count=50)
     if table_is_empty("congress_trades"):
-        _run_refresh("congress", refresh_congress_trades, year=date.today().year)
+        _run_refresh("congress", refresh_all_congress_trades, year=date.today().year)
 
 
 def run_daily_refresh() -> None:
     since = (date.today() - timedelta(days=DAILY_LOOKBACK_DAYS)).isoformat()
     _run_refresh("insiders", refresh_form4, count=200)
     _run_refresh("institutions", refresh_13f, count=100)
-    _run_refresh("congress", refresh_congress_trades, year=date.today().year, since_date=since)
+    _run_refresh("congress", refresh_all_congress_trades, year=date.today().year, since_date=since)
 
 
 def start_scheduler() -> BackgroundScheduler:

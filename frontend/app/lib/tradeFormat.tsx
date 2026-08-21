@@ -36,6 +36,7 @@ export function renderCell(key: string, value: unknown): ReactNode {
   if (key === "acquired_disposed" || key === "transaction_code" || key === "transaction_type") {
     return badge(badgeLabel(key, str), badgeTone(key, str));
   }
+  if (key === "chamber") return str.charAt(0).toUpperCase() + str.slice(1);
   return str;
 }
 

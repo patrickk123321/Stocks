@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 
 from app.csv_export import rows_to_csv
 from app.db import query_all_rows, query_rows, record_scrape_run
-from app.sources.congress_trades import refresh_congress_trades
+from app.sources.congress_trades import refresh_all_congress_trades
 
 router = APIRouter(prefix="/api/congress", tags=["congress"])
 
@@ -78,6 +78,6 @@ def export_congress_trades(
 
 @router.post("/refresh")
 def refresh(year: int, limit: int | None = None, since_date: str | None = None):
-    inserted, errors = refresh_congress_trades(year=year, limit=limit, since_date=since_date)
+    inserted, errors = refresh_all_congress_trades(year=year, limit=limit, since_date=since_date)
     record_scrape_run("congress", inserted, errors)
     return {"inserted": inserted, "errors": errors}
