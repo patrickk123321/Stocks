@@ -177,3 +177,42 @@ def test_position_changes_filter_by_type(temp_db):
     new_only, total = db.get_position_changes(change_type="NEW")
     assert total == 1
     assert new_only[0]["change_type"] == "NEW"
+
+
+def test_portfolio_snapshot_round_trip(temp_db):
+    assert db.get_latest_portfolio_snapshot() is None
+    holdings = [{"ticker": "AAPL", "shares": 10, "value": 1000.0}]
+    snapshot_id = db.save_portfolio_snapshot(holdings)
+    assert snapshot_id is not None
+
+    latest = db.get_latest_portfolio_snapshot()
+    assert latest["holdings"] == holdings
+    assert latest["id"] == snapshot_id
+
+
+def test_portfolio_snapshot_latest_returns_most_recent(temp_db):
+    db.save_portfolio_snapshot([{"ticker": "AAPL", "shares": 1, "value": 100.0}])
+    db.save_portfolio_snapshot([{"ticker": "MSFT", "shares": 1, "value": 200.0}])
+    latest = db.get_latest_portfolio_snapshot()
+    assert latest["holdings"][0]["ticker"] == "MSFT"
+
+
+def test_risk_profile_round_trip(temp_db):
+    assert db.get_risk_profile() is None
+    db.save_risk_profile(
+        time_horizon="long", risk_tolerance="aggressive", primary_goal="growth",
+        target_stock_pct=90.0, target_bond_pct=10.0, target_cash_pct=0.0,
+    )
+    profile = db.get_risk_profile()
+    assert profile["risk_tolerance"] == "aggressive"
+    assert profile["target_stock_pct"] == 90.0
+
+
+def test_risk_profile_save_is_upsert_not_a_new_row(temp_db):
+    db.save_risk_profile("long", "aggressive", "growth", 90.0, 10.0, 0.0)
+    db.save_risk_profile("short", "conservative", "preservation", 30.0, 60.0, 10.0)
+    profile = db.get_risk_profile()
+    assert profile["risk_tolerance"] == "conservative"  # overwritten, not a second row
+    with db.get_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM risk_profile").fetchone()[0]
+    assert count == 1

@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
   { key: "trade-tracker", href: "/trade-tracker", label: "Trade Tracker", icon: ChartLineUp },
-  { key: "recommendations", href: null, label: "Recommendations", icon: Wallet },
+  { key: "recommendations", href: "/recommendations", label: "Recommendations", icon: Wallet },
   { key: "auto-trader", href: null, label: "Auto-Trading Bot", icon: Robot },
 ] as const;
 

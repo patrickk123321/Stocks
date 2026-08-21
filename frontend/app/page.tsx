@@ -15,11 +15,11 @@ const PRODUCTS = [
   },
   {
     key: "recommendations",
-    href: null,
+    href: "/recommendations",
     icon: Wallet,
     title: "Portfolio Recommendations",
     description: "Stock and ETF suggestions with target allocations, based on your risk profile and current holdings.",
-    status: "coming-soon" as const,
+    status: "live" as const,
     iconWrap: "bg-warning/15 text-warning",
     hoverBorder: "hover:border-warning/60",
     glow: "group-hover:shadow-[0_0_0_1px_rgba(251,191,36,0.35),0_16px_40px_-12px_rgba(251,191,36,0.3)]",

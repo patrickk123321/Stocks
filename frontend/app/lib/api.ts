@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export type Category = "insiders" | "institutions" | "congress";
 
@@ -15,7 +15,7 @@ const LIST_TIMEOUT_MS = 15_000;
 // a healthy in-progress scrape, not just catch a stalled connection.
 const REFRESH_TIMEOUT_MS = 120_000;
 
-async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = LIST_TIMEOUT_MS): Promise<Response> {
+export async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = LIST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {

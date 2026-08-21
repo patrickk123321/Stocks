@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -69,6 +70,29 @@ CREATE TABLE IF NOT EXISTS scrape_runs (
     ran_at TEXT NOT NULL,
     inserted INTEGER NOT NULL,
     error_count INTEGER NOT NULL DEFAULT 0
+);
+
+-- Product 2 (Portfolio Recommendations). One row per confirmed screenshot
+-- upload — holdings are stored as a JSON blob (list of {ticker, shares, value})
+-- rather than a normalized table, since this is a point-in-time snapshot, not
+-- something queried/filtered row-by-row the way the trade-tracker tables are.
+CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uploaded_at TEXT NOT NULL,
+    holdings_json TEXT NOT NULL
+);
+
+-- Single-row settings table (id is always 1) — this is a single-user personal
+-- app, so a full accounts/profiles system would be over-engineering.
+CREATE TABLE IF NOT EXISTS risk_profile (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    time_horizon TEXT,
+    risk_tolerance TEXT,
+    primary_goal TEXT,
+    target_stock_pct REAL,
+    target_bond_pct REAL,
+    target_cash_pct REAL,
+    updated_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_insider_ticker ON insider_transactions(issuer_ticker);
@@ -304,3 +328,66 @@ def get_position_changes(change_type: str | None = None, limit: int = 50, offset
     changes.sort(key=sort_key, reverse=True)
     total = len(changes)
     return changes[offset:offset + limit], total
+
+
+def save_portfolio_snapshot(holdings: list[dict]) -> int:
+    """Stores a user-confirmed set of holdings (see app/routers/portfolio.py —
+    holdings are only ever saved after the user reviews/corrects what the vision
+    call extracted, never straight from the model's output). Returns the new
+    snapshot's id."""
+    with get_conn() as conn:
+        cursor = conn.execute(
+            "INSERT INTO portfolio_snapshots (uploaded_at, holdings_json) VALUES (:uploaded_at, :holdings_json)",
+            {"uploaded_at": datetime.now(timezone.utc).isoformat(), "holdings_json": json.dumps(holdings)},
+        )
+        return cursor.lastrowid
+
+
+def get_latest_portfolio_snapshot() -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, uploaded_at, holdings_json FROM portfolio_snapshots ORDER BY uploaded_at DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            return None
+        return {"id": row["id"], "uploaded_at": row["uploaded_at"], "holdings": json.loads(row["holdings_json"])}
+
+
+def get_risk_profile() -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM risk_profile WHERE id = 1").fetchone()
+        return dict(row) if row else None
+
+
+def save_risk_profile(
+    time_horizon: str | None,
+    risk_tolerance: str,
+    primary_goal: str | None,
+    target_stock_pct: float,
+    target_bond_pct: float,
+    target_cash_pct: float,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO risk_profile (id, time_horizon, risk_tolerance, primary_goal, target_stock_pct, target_bond_pct, target_cash_pct, updated_at)
+            VALUES (1, :time_horizon, :risk_tolerance, :primary_goal, :target_stock_pct, :target_bond_pct, :target_cash_pct, :updated_at)
+            ON CONFLICT(id) DO UPDATE SET
+                time_horizon = excluded.time_horizon,
+                risk_tolerance = excluded.risk_tolerance,
+                primary_goal = excluded.primary_goal,
+                target_stock_pct = excluded.target_stock_pct,
+                target_bond_pct = excluded.target_bond_pct,
+                target_cash_pct = excluded.target_cash_pct,
+                updated_at = excluded.updated_at
+            """,
+            {
+                "time_horizon": time_horizon,
+                "risk_tolerance": risk_tolerance,
+                "primary_goal": primary_goal,
+                "target_stock_pct": target_stock_pct,
+                "target_bond_pct": target_bond_pct,
+                "target_cash_pct": target_cash_pct,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
