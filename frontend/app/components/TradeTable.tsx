@@ -10,8 +10,10 @@ import {
   ShieldCheck,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { Fragment, ReactNode, useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { BackendUnreachableError, Category, fetchTrades, refreshTrades, SortOrder } from "../lib/api";
+import { badge, badgeLabel, badgeTone, formatMeta, renderCell } from "../lib/tradeFormat";
+import StatTiles from "./StatTiles";
 
 interface Column {
   key: string;
@@ -38,58 +40,14 @@ interface TradeTableProps {
   searchPlaceholder: string;
   columns: Column[];
   summary: SummaryConfig;
+  emptyIcon?: typeof Database;
 }
 
 const PAGE_SIZE = 50;
 const SKELETON_ROWS = 8;
+const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50";
 
-const BUY_CODES = new Set(["P", "A", "M"]);
-const SELL_CODES = new Set(["S", "D", "F"]);
-
-function badge(label: string, tone: "positive" | "negative" | "neutral") {
-  const cls =
-    tone === "positive"
-      ? "bg-positive/15 text-positive"
-      : tone === "negative"
-        ? "bg-destructive/15 text-destructive"
-        : "bg-muted text-muted-foreground";
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>;
-}
-
-function badgeTone(key: string, value: string): "positive" | "negative" | "neutral" {
-  if (key === "acquired_disposed") return value === "A" ? "positive" : value === "D" ? "negative" : "neutral";
-  if (key === "transaction_code") return BUY_CODES.has(value) ? "positive" : SELL_CODES.has(value) ? "negative" : "neutral";
-  if (key === "transaction_type") {
-    const upper = value.toUpperCase();
-    return upper.startsWith("P") ? "positive" : upper.startsWith("S") ? "negative" : "neutral";
-  }
-  return "neutral";
-}
-
-function badgeLabel(key: string, value: string): string {
-  if (key === "acquired_disposed") return value === "A" ? "Acquired" : value === "D" ? "Disposed" : value;
-  return value;
-}
-
-function renderCell(key: string, value: unknown): ReactNode {
-  const str = value === null || value === undefined || value === "" ? "" : String(value);
-  if (!str) return <span className="text-muted-foreground/50">—</span>;
-  if (key === "acquired_disposed" || key === "transaction_code" || key === "transaction_type") {
-    return badge(badgeLabel(key, str), badgeTone(key, str));
-  }
-  return str;
-}
-
-function formatMeta(value: unknown, format?: "currency"): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (format === "currency") {
-    const num = Number(value);
-    if (!Number.isNaN(num)) return `$${num.toLocaleString()}`;
-  }
-  return typeof value === "number" ? value.toLocaleString() : String(value);
-}
-
-export default function TradeTable({ category, searchPlaceholder, columns, summary }: TradeTableProps) {
+export default function TradeTable({ category, searchPlaceholder, columns, summary, emptyIcon: EmptyIcon = Database }: TradeTableProps) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
@@ -100,6 +58,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [loadToken, setLoadToken] = useState(0);
 
   const load = async (q: string, sort: string | undefined, order: SortOrder) => {
     setLoading(true);
@@ -109,6 +68,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       const page = await fetchTrades(category, q, { sort, order, limit: PAGE_SIZE, offset: 0 });
       setRows(page.rows);
       setTotal(page.total);
+      setLoadToken((t) => t + 1);
     } catch (err) {
       setError(err instanceof BackendUnreachableError ? err.message : "Something went wrong loading this data.");
     } finally {
@@ -184,14 +144,14 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           <button
             onClick={() => load(query, sortKey, sortOrder)}
             disabled={loading}
-            className="flex-1 cursor-pointer rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+            className={`flex-1 cursor-pointer rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
           >
             {loading ? "Searching…" : "Search"}
           </button>
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+            className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
           >
             <ArrowsClockwise size={16} className={refreshing ? "animate-spin" : ""} aria-hidden="true" />
             {refreshing ? "Refreshing…" : "Refresh now"}
@@ -199,21 +159,16 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         </div>
       </div>
 
+      {!loading && !error && rows.length > 0 && <StatTiles total={total} rows={rows} summary={summary} />}
+
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-        <div className="flex items-center gap-3">
-          {!loading && !error && (
-            <p className="text-xs font-medium text-muted-foreground">
-              {total.toLocaleString()} result{total === 1 ? "" : "s"}
-            </p>
-          )}
-          <span
-            className={`flex items-center gap-1 text-xs ${summary.sourceVerified ? "text-positive" : "text-warning"}`}
-            title={summary.sourceNote}
-          >
-            {summary.sourceVerified && <ShieldCheck size={13} weight="fill" aria-hidden="true" />}
-            {summary.sourceLabel}
-          </span>
-        </div>
+        <span
+          className={`flex items-center gap-1 text-xs ${summary.sourceVerified ? "text-positive" : "text-warning"}`}
+          title={summary.sourceNote}
+        >
+          {summary.sourceVerified && <ShieldCheck size={13} weight="fill" aria-hidden="true" />}
+          {summary.sourceLabel}
+        </span>
 
         <div className="flex items-center gap-2 text-xs">
           <label htmlFor={`sort-${category}`} className="text-muted-foreground">
@@ -223,7 +178,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             id={`sort-${category}`}
             value={sortKey ?? ""}
             onChange={(e) => handleSortKeyChange(e.target.value || undefined)}
-            className="cursor-pointer rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent"
+            className={`cursor-pointer rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
           >
             <option value="">Most recent</option>
             {columns.map((col) => (
@@ -235,7 +190,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           <button
             onClick={handleToggleOrder}
             aria-label={sortOrder === "asc" ? "Sort descending" : "Sort ascending"}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
           >
             {sortOrder === "asc" ? <CaretUp size={13} aria-hidden="true" /> : <CaretDown size={13} aria-hidden="true" />}
           </button>
@@ -260,7 +215,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         ) : rows.length === 0 && !error ? (
           <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <Database size={22} aria-hidden="true" />
+              <EmptyIcon size={22} aria-hidden="true" />
             </div>
             <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
               No results yet. The daily scrape runs at 9am — or click &quot;Refresh now&quot; to fetch the latest filings.
@@ -274,16 +229,29 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             const targetName = String(row[summary.targetNameKey] ?? "");
             const badgeValue = summary.badgeKey ? String(row[summary.badgeKey] ?? "") : "";
             const sourceUrl = row.source_url ? String(row.source_url) : null;
+            const tone = summary.badgeKey && badgeValue ? badgeTone(summary.badgeKey, badgeValue) : null;
+            const barClass = tone === "positive" ? "bg-positive" : tone === "negative" ? "bg-destructive" : tone === "neutral" ? "bg-border" : "bg-accent";
+            // Keying on loadToken (bumped once per fresh load/search/sort/category-switch, not on
+            // loadMore or expand/collapse) makes the entrance animation replay on a fresh result set
+            // without replaying every time a row is merely toggled open or closed.
+            const rowKey = `${loadToken}-${i}`;
 
             return (
-              <Fragment key={i}>
+              <Fragment key={rowKey}>
                 <button
                   onClick={() => setExpanded(isOpen ? null : i)}
                   aria-expanded={isOpen}
-                  className={`flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/50 ${
+                  className={`group relative flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/50 animate-fade-up ${FOCUS_RING} ${
                     i > 0 ? "border-t border-border" : ""
                   } ${isOpen ? "bg-muted/40" : ""}`}
+                  style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
                 >
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-y-0 left-0 w-0.5 ${barClass} transition-opacity ${
+                      isOpen ? "opacity-100" : "opacity-0 group-hover:opacity-60"
+                    }`}
+                  />
                   <div className="flex min-w-0 items-center gap-3">
                     {badgeValue && badge(badgeLabel(summary.badgeKey!, badgeValue), badgeTone(summary.badgeKey!, badgeValue))}
                     <div className="min-w-0">
@@ -329,7 +297,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                           href={sourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex w-fit items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                          className={`flex w-fit items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted ${FOCUS_RING}`}
                         >
                           View original filing
                           <ArrowSquareOut size={13} aria-hidden="true" />
@@ -352,7 +320,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         <button
           onClick={loadMore}
           disabled={loadingMore}
-          className="cursor-pointer self-center rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          className={`cursor-pointer self-center rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
         >
           {loadingMore ? "Loading…" : `Load more (${rows.length} of ${total.toLocaleString()})`}
         </button>

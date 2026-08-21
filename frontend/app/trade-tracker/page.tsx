@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bank, Buildings, UserCircle } from "@phosphor-icons/react";
-import Link from "next/link";
+import { Bank, Buildings, UserCircle } from "@phosphor-icons/react";
 import { useState } from "react";
 import TradeTable, { SummaryConfig } from "../components/TradeTable";
 import { Category } from "../lib/api";
@@ -120,13 +119,6 @@ export default function TradeTrackerPage() {
     <div className="flex flex-1 flex-col">
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-10">
         <div className="flex flex-col gap-1">
-          <Link
-            href="/"
-            className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft size={16} aria-hidden="true" />
-            Stocks
-          </Link>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Trade Tracker</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Corporate insider trades, institutional 13F holdings, and congressional trades — refreshed daily at 9am.
@@ -141,7 +133,7 @@ export default function TradeTrackerPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                   active ? tab.active : tab.inactive
                 }`}
               >
@@ -157,6 +149,7 @@ export default function TradeTrackerPage() {
           searchPlaceholder={SEARCH_PLACEHOLDERS[activeTab]}
           columns={COLUMNS[activeTab]}
           summary={SUMMARY[activeTab]}
+          emptyIcon={TABS.find((tab) => tab.key === activeTab)!.icon}
         />
       </main>
     </div>
