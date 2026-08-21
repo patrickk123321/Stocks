@@ -5,18 +5,22 @@
   --color-on-primary: #ffffff;
   --color-secondary: #1e293b;
   --color-on-secondary: #ffffff;
-  --color-accent: #22c55e;
-  --color-on-accent: #0f172a;
+  --color-accent: #7c3aed;
+  --color-on-accent: #ffffff;
   --color-background: #020617;
-  --color-foreground: #f8fafc;
-  --color-card: #0e1223;
-  --color-card-foreground: #f8fafc;
-  --color-muted: #1a1e2f;
+  --color-foreground: #e7eaf3;
+  --color-card: #10152b;
+  --color-card-foreground: #e7eaf3;
+  --color-muted: #1a2036;
   --color-muted-foreground: #94a3b8;
-  --color-border: #334155;
-  --color-destructive: #ef4444;
-  --color-on-destructive: #000000;
-  --color-ring: #ffffff;
+  --color-border: #262e4a;
+  --color-destructive: #f87171;
+  --color-on-destructive: #450a0a;
+  --color-positive: #34d399;
+  --color-on-positive: #052e16;
+  --color-warning: #fbbf24;
+  --color-on-warning: #451a03;
+  --color-ring: #a78bfa;
 }
 
 @theme inline {
@@ -34,6 +38,11 @@
   --color-muted-foreground: var(--color-muted-foreground);
   --color-border: var(--color-border);
   --color-destructive: var(--color-destructive);
+  --color-on-destructive: var(--color-on-destructive);
+  --color-positive: var(--color-positive);
+  --color-on-positive: var(--color-on-positive);
+  --color-warning: var(--color-warning);
+  --color-on-warning: var(--color-on-warning);
   --color-ring: var(--color-ring);
   --font-sans: var(--font-fira-sans);
   --font-mono: var(--font-fira-code);
@@ -51,4 +60,32 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out both;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
 }

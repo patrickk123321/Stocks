@@ -6,10 +6,28 @@ import { useState } from "react";
 import TradeTable from "../components/TradeTable";
 import { Category } from "../lib/api";
 
-const TABS: { key: Category; label: string; icon: typeof UserCircle }[] = [
-  { key: "insiders", label: "Corporate Insiders", icon: UserCircle },
-  { key: "institutions", label: "Institutions (13F)", icon: Buildings },
-  { key: "congress", label: "Congress", icon: Bank },
+const TABS: { key: Category; label: string; icon: typeof UserCircle; active: string; inactive: string }[] = [
+  {
+    key: "insiders",
+    label: "Corporate Insiders",
+    icon: UserCircle,
+    active: "bg-accent/15 text-accent",
+    inactive: "text-muted-foreground hover:bg-muted hover:text-foreground",
+  },
+  {
+    key: "institutions",
+    label: "Institutions (13F)",
+    icon: Buildings,
+    active: "bg-warning/15 text-warning",
+    inactive: "text-muted-foreground hover:bg-muted hover:text-foreground",
+  },
+  {
+    key: "congress",
+    label: "Congress",
+    icon: Bank,
+    active: "bg-positive/15 text-positive",
+    inactive: "text-muted-foreground hover:bg-muted hover:text-foreground",
+  },
 ];
 
 const COLUMNS: Record<Category, { key: string; label: string }[]> = {
@@ -64,13 +82,13 @@ export default function TradeTrackerPage() {
             <ArrowLeft size={16} aria-hidden="true" />
             Stocks
           </Link>
-          <h1 className="text-2xl font-semibold text-foreground">Trade Tracker</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Trade Tracker</h1>
+          <p className="text-sm leading-relaxed text-muted-foreground">
             Corporate insider trades, institutional 13F holdings, and congressional trades — refreshed daily at 9am.
           </p>
         </div>
 
-        <div className="flex gap-1 border-b border-border">
+        <div className="flex flex-wrap gap-1.5 rounded-xl border border-border bg-card p-1.5">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.key;
@@ -78,10 +96,8 @@ export default function TradeTrackerPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex cursor-pointer items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                  active
-                    ? "border-accent text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
+                className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  active ? tab.active : tab.inactive
                 }`}
               >
                 <Icon size={16} weight={active ? "fill" : "regular"} aria-hidden="true" />
