@@ -20,7 +20,7 @@ from app.sources.edgar_common import (
 
 def _parse_transaction(tx: ET.Element, issuer_name, issuer_ticker, owner_name,
                         officer_title, is_officer, is_director, is_ten_pct,
-                        is_derivative: bool, accession_no: str, filed_at: str) -> dict | None:
+                        is_derivative: bool, accession_no: str, filer_cik: str, filed_at: str) -> dict | None:
     security_title = text(local_find(local_find(tx, "securityTitle"), "value"))
     tx_date = text(local_find(local_find(tx, "transactionDate"), "value"))
     coding = local_find(tx, "transactionCoding")
@@ -37,6 +37,7 @@ def _parse_transaction(tx: ET.Element, issuer_name, issuer_ticker, owner_name,
 
     return {
         "accession_no": accession_no,
+        "filer_cik": filer_cik,
         "issuer_name": issuer_name,
         "issuer_ticker": issuer_ticker,
         "owner_name": owner_name,
@@ -56,7 +57,7 @@ def _parse_transaction(tx: ET.Element, issuer_name, issuer_ticker, owner_name,
     }
 
 
-def _parse_ownership_document(xml_bytes: bytes, accession_no: str, filed_at: str) -> list[dict]:
+def _parse_ownership_document(xml_bytes: bytes, accession_no: str, filer_cik: str, filed_at: str) -> list[dict]:
     root = ET.fromstring(xml_bytes)
 
     issuer = local_find(root, "issuer")
@@ -76,7 +77,7 @@ def _parse_ownership_document(xml_bytes: bytes, accession_no: str, filed_at: str
         for tx in local_findall(root, "nonDerivativeTransaction"):
             row = _parse_transaction(
                 tx, issuer_name, issuer_ticker, owner_name, officer_title,
-                is_officer, is_director, is_ten_pct, False, accession_no, filed_at,
+                is_officer, is_director, is_ten_pct, False, accession_no, filer_cik, filed_at,
             )
             if row:
                 rows.append(row)
@@ -84,7 +85,7 @@ def _parse_ownership_document(xml_bytes: bytes, accession_no: str, filed_at: str
         for tx in local_findall(root, "derivativeTransaction"):
             row = _parse_transaction(
                 tx, issuer_name, issuer_ticker, owner_name, officer_title,
-                is_officer, is_director, is_ten_pct, True, accession_no, filed_at,
+                is_officer, is_director, is_ten_pct, True, accession_no, filer_cik, filed_at,
             )
             if row:
                 rows.append(row)
@@ -107,7 +108,7 @@ def refresh_form4(count: int = 100) -> int:
                     resp = client.get(doc_url)
                     resp.raise_for_status()
                     rows = _parse_ownership_document(
-                        resp.content, filing["accession_no"], filing["filed_at"]
+                        resp.content, filing["accession_no"], filing["cik"], filing["filed_at"]
                     )
                 except Exception:
                     continue

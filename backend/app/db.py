@@ -7,6 +7,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS insider_transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     accession_no TEXT NOT NULL,
+    filer_cik TEXT,
     issuer_name TEXT,
     issuer_ticker TEXT,
     owner_name TEXT,
@@ -72,9 +73,18 @@ def get_conn():
         conn.close()
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, coltype: str) -> None:
+    """Adds `column` to `table` if it's missing — CREATE TABLE IF NOT EXISTS only
+    covers brand-new databases, so existing ones need this to pick up new columns."""
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+
+
 def init_db():
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        _ensure_column(conn, "insider_transactions", "filer_cik", "TEXT")
 
 
 def insert_rows(table: str, rows: list[dict]) -> int:

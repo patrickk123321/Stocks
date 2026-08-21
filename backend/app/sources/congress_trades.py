@@ -41,6 +41,35 @@ FIELDS_RE = re.compile(
 )
 TICKER_RE = re.compile(r"\(([A-Z]{1,6})\)")
 
+# The PTR PDF template's field labels ("Filing Status:", "Sub-Holding Of:") are set in
+# a font pdfplumber can't map to Unicode, so those specific words extract as NUL bytes
+# — e.g. "Filing Status: New Sub-Holding Of:" comes out as
+# "F\x00\x00\x00\x00\x00 S\x00\x00\x00\x00\x00: New S\x00\x00\x00\x00\x00\x00\x00\x00\x00 O\x00:".
+# The label itself carries no per-filing information, so drop it; keep whatever real
+# value follows (e.g. an account/trust name like "Growth Partners Roth IRA").
+BOILERPLATE_LABEL_RE = re.compile(
+    r"\[[A-Z]{2,4}\]\s*F\x00+\s*S\x00+:\s*(?:New|Amended?)\s*S\x00+\s*O\x00*:\s*",
+    re.IGNORECASE,
+)
+LEADING_TICKER_RE = re.compile(r"^\([A-Z]{1,6}\)\s*")
+
+
+def _clean_asset_description(raw: str) -> str:
+    cleaned = BOILERPLATE_LABEL_RE.sub("", raw)
+    cleaned = cleaned.replace("\x00", "")
+    # A stray "(TICKER)" can leak in from the previous row's window; the real
+    # ticker already has its own column, so drop a leading one here as noise.
+    cleaned = LEADING_TICKER_RE.sub("", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip(" -")
+
+
+def _is_valid_date(value: str) -> bool:
+    try:
+        datetime.strptime(value, "%m/%d/%Y")
+        return True
+    except ValueError:
+        return False
+
 
 def _house_client() -> httpx.Client:
     return httpx.Client(headers={"User-Agent": HOUSE_CLERK_USER_AGENT}, timeout=30.0)
@@ -103,10 +132,13 @@ def _parse_ptr_pdf(pdf_bytes: bytes) -> list[dict]:
         last_dollar = name_window.rfind("$")
         if last_dollar != -1:
             name_window = name_window[last_dollar + 1:]
-        asset_description = re.sub(r"\s+", " ", name_window).strip(" -")
+        asset_description = _clean_asset_description(name_window)
         prev_end = match.end()
 
-        if not ticker:
+        # Validation layer: never store a trade whose ticker or dates didn't
+        # extract cleanly — a malformed row would otherwise look like a real
+        # trade on a bad date rather than being visibly absent.
+        if not ticker or not _is_valid_date(tx_date) or not _is_valid_date(notif_date):
             continue
 
         rows.append({

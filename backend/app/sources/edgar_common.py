@@ -55,6 +55,13 @@ def fetch_recent_filings(form_type: str, count: int, client: httpx.Client) -> li
     return list(seen.values())
 
 
+def filing_index_url(cik: str, accession_no: str) -> str:
+    """Builds a link to the filing's official index page on sec.gov, so a user can
+    open the primary-source document directly and confirm a stored row against it."""
+    accession_nodashes = accession_no.replace("-", "")
+    return f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_nodashes}/{accession_no}-index.htm"
+
+
 def filing_documents(filing: dict, client: httpx.Client) -> list[str]:
     """Returns absolute URLs to every document filed under this accession."""
     resp = client.get(filing["index_url"])

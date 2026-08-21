@@ -3,7 +3,7 @@
 import { ArrowLeft, Bank, Buildings, UserCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
-import TradeTable from "../components/TradeTable";
+import TradeTable, { SummaryConfig } from "../components/TradeTable";
 import { Category } from "../lib/api";
 
 const TABS: { key: Category; label: string; icon: typeof UserCircle; active: string; inactive: string }[] = [
@@ -68,6 +68,51 @@ const SEARCH_PLACEHOLDERS: Record<Category, string> = {
   congress: "Search by ticker, member, or asset",
 };
 
+const SUMMARY: Record<Category, SummaryConfig> = {
+  insiders: {
+    actorLabel: "Insider",
+    actorKey: "owner_name",
+    targetTickerKey: "issuer_ticker",
+    targetNameKey: "issuer_name",
+    badgeKey: "acquired_disposed",
+    dateKey: "transaction_date",
+    metaKey: "shares",
+    metaLabel: "Shares",
+    sourceLabel: "SEC EDGAR — Form 4 filing",
+    sourceNote:
+      "Read directly from the SEC's structured EDGAR filing feed (not a PDF or text extraction) — the most reliable source in this app.",
+    sourceVerified: true,
+  },
+  institutions: {
+    actorLabel: "Institution",
+    actorKey: "filer_name",
+    targetTickerKey: "cusip",
+    targetNameKey: "issuer_name",
+    dateKey: "period_of_report",
+    metaKey: "value",
+    metaLabel: "Value",
+    metaFormat: "currency",
+    sourceLabel: "SEC EDGAR — Form 13F-HR filing",
+    sourceNote:
+      "Read directly from the SEC's structured EDGAR filing feed (not a PDF or text extraction) — the most reliable source in this app.",
+    sourceVerified: true,
+  },
+  congress: {
+    actorLabel: "Member of Congress",
+    actorKey: "member_name",
+    targetTickerKey: "ticker",
+    targetNameKey: "asset_description",
+    badgeKey: "transaction_type",
+    dateKey: "transaction_date",
+    metaKey: "amount_range",
+    metaLabel: "Amount",
+    sourceLabel: "House Clerk PDF — auto-extracted",
+    sourceNote:
+      "The House Clerk only publishes these as PDFs, so fields are extracted with a best-effort parser rather than read from structured data. Use \"View original filing\" to confirm any row against the source PDF.",
+    sourceVerified: false,
+  },
+};
+
 export default function TradeTrackerPage() {
   const [activeTab, setActiveTab] = useState<Category>("insiders");
 
@@ -111,6 +156,7 @@ export default function TradeTrackerPage() {
           category={activeTab}
           searchPlaceholder={SEARCH_PLACEHOLDERS[activeTab]}
           columns={COLUMNS[activeTab]}
+          summary={SUMMARY[activeTab]}
         />
       </main>
     </div>

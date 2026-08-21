@@ -15,6 +15,8 @@ SORT_FIELDS = {
 @router.get("")
 def list_congress_trades(q: str | None = None, sort: str | None = None, order: str = "desc", limit: int = 50, offset: int = 0):
     rows, total = query_rows("congress_trades", SEARCH_FIELDS, q, "transaction_date", SORT_FIELDS, sort, order, limit, offset)
+    for row in rows:
+        row["source_url"] = row.get("pdf_url")
     return {"rows": rows, "total": total}
 
 
