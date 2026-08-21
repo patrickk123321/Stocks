@@ -9,14 +9,24 @@ export class BackendUnreachableError extends Error {
   }
 }
 
-async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+const LIST_TIMEOUT_MS = 15_000;
+// A real refresh triggers live scraping of SEC/House Clerk filings and can
+// legitimately take well over a minute — a short timeout here would cancel
+// a healthy in-progress scrape, not just catch a stalled connection.
+const REFRESH_TIMEOUT_MS = 120_000;
+
+async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = LIST_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(`${API_BASE}${path}`, init);
+    return await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal });
   } catch {
-    // A native fetch() network error (connection refused, DNS failure, CORS
-    // block) throws a generic "Failed to fetch" TypeError with no useful
-    // detail — surface something actionable instead.
+    // A native fetch() error — network failure (connection refused, DNS
+    // failure, CORS block) or our own abort on timeout — throws a generic
+    // TypeError/AbortError with no useful detail; surface something actionable.
     throw new BackendUnreachableError();
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -50,11 +60,25 @@ export async function fetchTrades(category: Category, q: string, options: FetchT
   return res.json();
 }
 
-export async function refreshTrades(category: Category): Promise<{ inserted: number }> {
+export async function refreshTrades(category: Category): Promise<{ inserted: number; errors: number }> {
   const extra = category === "congress" ? `?year=${new Date().getFullYear()}` : "";
-  const res = await apiFetch(`/api/${category}/refresh${extra}`, { method: "POST" });
+  const res = await apiFetch(`/api/${category}/refresh${extra}`, { method: "POST" }, REFRESH_TIMEOUT_MS);
   if (!res.ok) {
     throw new Error(`Failed to refresh ${category}: ${res.status}`);
+  }
+  return res.json();
+}
+
+export interface ScrapeStatus {
+  ran_at: string;
+  inserted: number;
+  error_count: number;
+}
+
+export async function fetchStatus(): Promise<Record<Category, ScrapeStatus | null>> {
+  const res = await apiFetch("/api/status");
+  if (!res.ok) {
+    throw new Error(`Failed to fetch status: ${res.status}`);
   }
   return res.json();
 }

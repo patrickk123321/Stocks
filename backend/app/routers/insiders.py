@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.db import query_rows
+from app.db import query_rows, record_scrape_run
 from app.sources.edgar_common import filing_index_url
 from app.sources.edgar_form4 import refresh_form4
 
@@ -27,5 +27,6 @@ def list_insider_trades(q: str | None = None, sort: str | None = None, order: st
 
 @router.post("/refresh")
 def refresh(count: int = 100):
-    inserted = refresh_form4(count=count)
-    return {"inserted": inserted}
+    inserted, errors = refresh_form4(count=count)
+    record_scrape_run("insiders", inserted, errors)
+    return {"inserted": inserted, "errors": errors}

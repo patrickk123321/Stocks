@@ -4,7 +4,7 @@ import threading
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import init_db
+from app.db import get_last_scrape_run, init_db
 from app.routers import congress, institutions, insiders
 from app.scheduler import backfill_if_empty, start_scheduler
 
@@ -41,3 +41,13 @@ def on_shutdown():
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/status")
+def status():
+    """Last scrape attempt per category, so a silently-failed scheduled run
+    (previously visible only in stdout logs) is surfaced to the frontend."""
+    return {
+        category: get_last_scrape_run(category)
+        for category in ("insiders", "institutions", "congress")
+    }

@@ -47,3 +47,20 @@ export function formatMeta(value: unknown, format?: "currency"): string {
   }
   return typeof value === "number" ? value.toLocaleString() : String(value);
 }
+
+const RELATIVE_TIME = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 31536000], ["month", 2592000], ["day", 86400], ["hour", 3600], ["minute", 60],
+];
+
+export function formatRelativeTime(isoString: string): string {
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return isoString;
+  const seconds = (date.getTime() - Date.now()) / 1000;
+  for (const [unit, secondsInUnit] of UNITS) {
+    if (Math.abs(seconds) >= secondsInUnit) {
+      return RELATIVE_TIME.format(Math.round(seconds / secondsInUnit), unit);
+    }
+  }
+  return "just now";
+}

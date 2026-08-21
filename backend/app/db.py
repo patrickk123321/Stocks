@@ -1,5 +1,6 @@
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 
 from app.config import DB_PATH
 
@@ -59,6 +60,31 @@ CREATE TABLE IF NOT EXISTS congress_trades (
     pdf_url TEXT,
     UNIQUE(doc_id, ticker, transaction_date, transaction_type, amount_range)
 );
+
+-- One row per scrape attempt, so a failed/partial scheduled run is visible to the
+-- user instead of only appearing in stdout logs (see scheduler.py / sources/*.py).
+CREATE TABLE IF NOT EXISTS scrape_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    ran_at TEXT NOT NULL,
+    inserted INTEGER NOT NULL,
+    error_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_insider_ticker ON insider_transactions(issuer_ticker);
+CREATE INDEX IF NOT EXISTS idx_insider_owner ON insider_transactions(owner_name);
+CREATE INDEX IF NOT EXISTS idx_insider_date ON insider_transactions(transaction_date);
+
+CREATE INDEX IF NOT EXISTS idx_institution_cusip ON institutional_holdings(cusip);
+CREATE INDEX IF NOT EXISTS idx_institution_filer_name ON institutional_holdings(filer_name);
+CREATE INDEX IF NOT EXISTS idx_institution_filer_cik ON institutional_holdings(filer_cik);
+CREATE INDEX IF NOT EXISTS idx_institution_period ON institutional_holdings(period_of_report);
+
+CREATE INDEX IF NOT EXISTS idx_congress_ticker ON congress_trades(ticker);
+CREATE INDEX IF NOT EXISTS idx_congress_member ON congress_trades(member_name);
+CREATE INDEX IF NOT EXISTS idx_congress_date ON congress_trades(transaction_date);
+
+CREATE INDEX IF NOT EXISTS idx_scrape_runs_category_ran_at ON scrape_runs(category, ran_at DESC);
 """
 
 
@@ -137,3 +163,25 @@ def table_is_empty(table: str) -> bool:
     with get_conn() as conn:
         row = conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
         return row is None
+
+
+def record_scrape_run(category: str, inserted: int, error_count: int) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO scrape_runs (category, ran_at, inserted, error_count) VALUES (:category, :ran_at, :inserted, :error_count)",
+            {
+                "category": category,
+                "ran_at": datetime.now(timezone.utc).isoformat(),
+                "inserted": inserted,
+                "error_count": error_count,
+            },
+        )
+
+
+def get_last_scrape_run(category: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT ran_at, inserted, error_count FROM scrape_runs WHERE category = :category ORDER BY ran_at DESC LIMIT 1",
+            {"category": category},
+        ).fetchone()
+        return dict(row) if row else None

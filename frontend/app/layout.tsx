@@ -16,7 +16,10 @@ const firaCode = Fira_Code({
 });
 
 export const metadata: Metadata = {
-  title: "Stocks",
+  title: {
+    template: "%s · Stocks",
+    default: "Stocks",
+  },
   description: "Personal investing platform: trade tracking, portfolio recommendations, and paper trading.",
 };
 

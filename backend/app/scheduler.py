@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app.db import table_is_empty
+from app.db import record_scrape_run, table_is_empty
 from app.sources.congress_trades import refresh_congress_trades
 from app.sources.edgar_13f import refresh_13f
 from app.sources.edgar_form4 import refresh_form4
@@ -16,10 +16,12 @@ DAILY_LOOKBACK_DAYS = 7
 
 def _run_refresh(name: str, fn, **kwargs) -> None:
     try:
-        inserted = fn(**kwargs)
-        logger.info("refreshed %s: %d rows inserted", name, inserted)
+        inserted, errors = fn(**kwargs)
+        logger.info("refreshed %s: %d rows inserted, %d failures", name, inserted, errors)
+        record_scrape_run(name, inserted, errors)
     except Exception:
         logger.exception("refresh failed for %s", name)
+        record_scrape_run(name, 0, -1)  # -1 signals a total run failure, not just per-filing errors
 
 
 def backfill_if_empty() -> None:

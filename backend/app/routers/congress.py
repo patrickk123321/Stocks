@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.db import query_rows
+from app.db import query_rows, record_scrape_run
 from app.sources.congress_trades import refresh_congress_trades
 
 router = APIRouter(prefix="/api/congress", tags=["congress"])
@@ -22,5 +22,6 @@ def list_congress_trades(q: str | None = None, sort: str | None = None, order: s
 
 @router.post("/refresh")
 def refresh(year: int, limit: int | None = None, since_date: str | None = None):
-    inserted = refresh_congress_trades(year=year, limit=limit, since_date=since_date)
-    return {"inserted": inserted}
+    inserted, errors = refresh_congress_trades(year=year, limit=limit, since_date=since_date)
+    record_scrape_run("congress", inserted, errors)
+    return {"inserted": inserted, "errors": errors}

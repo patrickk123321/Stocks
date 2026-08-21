@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.db import query_rows
+from app.db import query_rows, record_scrape_run
 from app.sources.edgar_13f import refresh_13f
 from app.sources.edgar_common import filing_index_url
 
@@ -27,5 +27,6 @@ def list_institutional_holdings(q: str | None = None, sort: str | None = None, o
 
 @router.post("/refresh")
 def refresh(count: int = 50):
-    inserted = refresh_13f(count=count)
-    return {"inserted": inserted}
+    inserted, errors = refresh_13f(count=count)
+    record_scrape_run("institutions", inserted, errors)
+    return {"inserted": inserted, "errors": errors}

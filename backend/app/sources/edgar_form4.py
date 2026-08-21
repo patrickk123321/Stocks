@@ -5,6 +5,7 @@ Schema verified against live filings, e.g.:
 https://www.sec.gov/Archives/edgar/data/1663090/000122520826007237/doc4.xml
 """
 
+import logging
 import xml.etree.ElementTree as ET
 
 from app.db import insert_rows
@@ -16,6 +17,8 @@ from app.sources.edgar_common import (
     sec_client,
     text,
 )
+
+logger = logging.getLogger("stocks.sources.edgar_form4")
 
 
 def _parse_transaction(tx: ET.Element, issuer_name, issuer_ticker, owner_name,
@@ -93,15 +96,19 @@ def _parse_ownership_document(xml_bytes: bytes, accession_no: str, filer_cik: st
     return rows
 
 
-def refresh_form4(count: int = 100) -> int:
-    """Fetches the latest Form 4 filings and stores their transactions. Returns rows inserted."""
+def refresh_form4(count: int = 100) -> tuple[int, int]:
+    """Fetches the latest Form 4 filings and stores their transactions.
+    Returns (rows inserted, filings that failed to fetch/parse)."""
     with sec_client() as client:
         filings = fetch_recent_filings("4", count, client)
         total_inserted = 0
+        error_count = 0
         for filing in filings:
             try:
                 doc_urls = [u for u in filing_documents(filing, client) if u.endswith(".xml")]
             except Exception:
+                logger.warning("failed to list documents for accession %s", filing["accession_no"], exc_info=True)
+                error_count += 1
                 continue
             for doc_url in doc_urls:
                 try:
@@ -111,6 +118,8 @@ def refresh_form4(count: int = 100) -> int:
                         resp.content, filing["accession_no"], filing["cik"], filing["filed_at"]
                     )
                 except Exception:
+                    logger.warning("failed to fetch/parse %s (accession %s)", doc_url, filing["accession_no"], exc_info=True)
+                    error_count += 1
                     continue
                 total_inserted += insert_rows("insider_transactions", rows)
-        return total_inserted
+        return total_inserted, error_count

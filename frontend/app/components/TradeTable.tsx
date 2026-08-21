@@ -10,9 +10,9 @@ import {
   ShieldCheck,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { Fragment, useEffect, useState } from "react";
-import { BackendUnreachableError, Category, fetchTrades, refreshTrades, SortOrder } from "../lib/api";
-import { badge, badgeLabel, badgeTone, formatMeta, renderCell } from "../lib/tradeFormat";
+import { useEffect, useState } from "react";
+import { BackendUnreachableError, Category, ScrapeStatus, fetchStatus, fetchTrades, refreshTrades, SortOrder } from "../lib/api";
+import { badge, badgeLabel, badgeTone, formatMeta, formatRelativeTime, renderCell } from "../lib/tradeFormat";
 import StatTiles from "./StatTiles";
 
 interface Column {
@@ -59,6 +59,16 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [loadToken, setLoadToken] = useState(0);
+  const [lastRun, setLastRun] = useState<ScrapeStatus | null>(null);
+
+  const refreshStatus = async () => {
+    try {
+      const status = await fetchStatus();
+      setLastRun(status[category] ?? null);
+    } catch {
+      // Non-critical — the page still works without a last-run indicator.
+    }
+  };
 
   const load = async (q: string, sort: string | undefined, order: SortOrder) => {
     setLoading(true);
@@ -95,6 +105,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
     setSortKey(undefined);
     setSortOrder("desc");
     load("", undefined, "desc");
+    refreshStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
@@ -115,6 +126,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
     try {
       await refreshTrades(category);
       await load(query, sortKey, sortOrder);
+      await refreshStatus();
     } catch (err) {
       setError(err instanceof BackendUnreachableError ? err.message : "Refresh failed — try again in a moment.");
     } finally {
@@ -162,13 +174,25 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       {!loading && !error && rows.length > 0 && <StatTiles total={total} rows={rows} summary={summary} />}
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-        <span
-          className={`flex items-center gap-1 text-xs ${summary.sourceVerified ? "text-positive" : "text-warning"}`}
-          title={summary.sourceNote}
-        >
-          {summary.sourceVerified && <ShieldCheck size={13} weight="fill" aria-hidden="true" />}
-          {summary.sourceLabel}
-        </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span
+            className={`flex items-center gap-1 text-xs ${summary.sourceVerified ? "text-positive" : "text-warning"}`}
+            title={summary.sourceNote}
+          >
+            {summary.sourceVerified && <ShieldCheck size={13} weight="fill" aria-hidden="true" />}
+            {summary.sourceLabel}
+          </span>
+          {lastRun && (
+            <span
+              className={`flex items-center gap-1 text-xs ${lastRun.error_count !== 0 ? "text-warning" : "text-muted-foreground"}`}
+              title={lastRun.error_count > 0 ? `${lastRun.error_count} filing(s) failed to fetch/parse on the last scrape` : lastRun.error_count < 0 ? "The last scrape failed entirely — check the backend logs" : undefined}
+            >
+              {lastRun.error_count !== 0 && <WarningCircle size={13} weight="fill" aria-hidden="true" />}
+              Last scrape {formatRelativeTime(lastRun.ran_at)}
+              {lastRun.error_count > 0 ? ` · ${lastRun.error_count} failed` : lastRun.error_count < 0 ? " · scrape failed" : ""}
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 text-xs">
           <label htmlFor={`sort-${category}`} className="text-muted-foreground">
@@ -204,7 +228,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="overflow-hidden rounded-lg border border-border bg-card" role={rows.length > 0 ? "list" : undefined}>
         {loading && rows.length === 0 ? (
           Array.from({ length: SKELETON_ROWS }).map((_, i) => (
             <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
@@ -235,12 +259,14 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             // loadMore or expand/collapse) makes the entrance animation replay on a fresh result set
             // without replaying every time a row is merely toggled open or closed.
             const rowKey = `${loadToken}-${i}`;
+            const panelId = `trade-row-panel-${category}-${rowKey}`;
 
             return (
-              <Fragment key={rowKey}>
+              <div key={rowKey} role="listitem">
                 <button
                   onClick={() => setExpanded(isOpen ? null : i)}
                   aria-expanded={isOpen}
+                  aria-controls={panelId}
                   className={`group relative flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/50 animate-fade-up ${FOCUS_RING} ${
                     i > 0 ? "border-t border-border" : ""
                   } ${isOpen ? "bg-muted/40" : ""}`}
@@ -281,7 +307,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-border bg-background/40 px-4 py-4">
+                  <div id={panelId} role="region" className="border-t border-border bg-background/40 px-4 py-4">
                     <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
                       {columns.map((col) => (
                         <div key={col.key} className="min-w-0">
@@ -310,7 +336,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                     </div>
                   </div>
                 )}
-              </Fragment>
+              </div>
             );
           })
         )}

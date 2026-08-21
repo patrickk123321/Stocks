@@ -7,6 +7,7 @@ Note: the info-table filename is chosen by the filer (not fixed), so it is
 identified as "the .xml document that isn't primary_doc.xml".
 """
 
+import logging
 import xml.etree.ElementTree as ET
 
 from app.db import insert_rows
@@ -18,6 +19,8 @@ from app.sources.edgar_common import (
     sec_client,
     text,
 )
+
+logger = logging.getLogger("stocks.sources.edgar_13f")
 
 
 def _parse_primary_doc(xml_bytes: bytes) -> tuple[str | None, str | None]:
@@ -56,15 +59,19 @@ def _parse_info_table(xml_bytes: bytes, accession_no: str, filer_name: str | Non
     return rows
 
 
-def refresh_13f(count: int = 50) -> int:
-    """Fetches the latest 13F-HR filings and stores their holdings. Returns rows inserted."""
+def refresh_13f(count: int = 50) -> tuple[int, int]:
+    """Fetches the latest 13F-HR filings and stores their holdings.
+    Returns (rows inserted, filings that failed to fetch/parse)."""
     with sec_client() as client:
         filings = fetch_recent_filings("13F-HR", count, client)
         total_inserted = 0
+        error_count = 0
         for filing in filings:
             try:
                 doc_urls = filing_documents(filing, client)
             except Exception:
+                logger.warning("failed to list documents for accession %s", filing["accession_no"], exc_info=True)
+                error_count += 1
                 continue
 
             primary_url = next((u for u in doc_urls if u.endswith("primary_doc.xml")), None)
@@ -75,6 +82,8 @@ def refresh_13f(count: int = 50) -> int:
             if not info_table_url:
                 continue
 
+            # Non-fatal: the info table below still carries the CUSIP/value data even
+            # without a filer name/period, so this is worth logging but not a full failure.
             filer_name, period = None, None
             if primary_url:
                 try:
@@ -82,7 +91,7 @@ def refresh_13f(count: int = 50) -> int:
                     resp.raise_for_status()
                     filer_name, period = _parse_primary_doc(resp.content)
                 except Exception:
-                    pass
+                    logger.warning("failed to fetch/parse primary doc for accession %s", filing["accession_no"], exc_info=True)
 
             try:
                 resp = client.get(info_table_url)
@@ -92,6 +101,8 @@ def refresh_13f(count: int = 50) -> int:
                     filing["cik"], period, filing["filed_at"],
                 )
             except Exception:
+                logger.warning("failed to fetch/parse info table for accession %s", filing["accession_no"], exc_info=True)
+                error_count += 1
                 continue
             total_inserted += insert_rows("institutional_holdings", rows)
-        return total_inserted
+        return total_inserted, error_count

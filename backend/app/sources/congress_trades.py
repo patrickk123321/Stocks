@@ -16,6 +16,7 @@ as real-world filings turn up formats it doesn't handle.
 """
 
 import io
+import logging
 import re
 import zipfile
 from datetime import date, datetime
@@ -26,6 +27,8 @@ import pdfplumber
 
 from app.config import HOUSE_CLERK_USER_AGENT
 from app.db import insert_rows
+
+logger = logging.getLogger("stocks.sources.congress_trades")
 
 INDEX_URL = "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/{year}FD.zip"
 PDF_URL = "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/{year}/{doc_id}.pdf"
@@ -152,12 +155,14 @@ def _parse_ptr_pdf(pdf_bytes: bytes) -> list[dict]:
     return rows
 
 
-def refresh_congress_trades(year: int, limit: int | None = None, since_date: str | None = None) -> int:
+def refresh_congress_trades(year: int, limit: int | None = None, since_date: str | None = None) -> tuple[int, int]:
     """Fetches House PTR filings for a given year and stores their trade rows.
 
     `since_date` (ISO "YYYY-MM-DD") restricts to filings filed on/after that date —
     used for the daily job so it doesn't re-download every PTR PDF for the year
     on each run. Omit it for a full-year backfill.
+
+    Returns (rows inserted, filings that failed to fetch/parse).
     """
     with _house_client() as client:
         entries = _fetch_ptr_index(year, client)
@@ -177,6 +182,7 @@ def refresh_congress_trades(year: int, limit: int | None = None, since_date: str
             entries = entries[:limit]
 
         total_inserted = 0
+        error_count = 0
         for entry in entries:
             pdf_url = PDF_URL.format(year=year, doc_id=entry["doc_id"])
             try:
@@ -184,6 +190,8 @@ def refresh_congress_trades(year: int, limit: int | None = None, since_date: str
                 resp.raise_for_status()
                 trade_rows = _parse_ptr_pdf(resp.content)
             except Exception:
+                logger.warning("failed to fetch/parse PTR doc_id %s", entry["doc_id"], exc_info=True)
+                error_count += 1
                 continue
 
             rows = [
@@ -199,4 +207,4 @@ def refresh_congress_trades(year: int, limit: int | None = None, since_date: str
                 for trade_row in trade_rows
             ]
             total_inserted += insert_rows("congress_trades", rows)
-        return total_inserted
+        return total_inserted, error_count
