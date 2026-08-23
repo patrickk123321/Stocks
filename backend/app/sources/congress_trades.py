@@ -43,6 +43,20 @@ FIELDS_RE = re.compile(
     r"(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})\s+"
     r"(\$[\d,]+(?:\s*-\s*\$[\d,]+|\+)?)"
 )
+
+# House PTR forms use single-letter codes; Senate rows (via senate_trades.py, a
+# different source entirely) use full words ("Purchase"/"Sale"/"Exchange"). Both
+# land in the same transaction_type column, so without this a user sees "P" on
+# one row and "Purchase" on the next for the same concept. Senate's full-word
+# format is the more readable of the two, so House's codes are expanded to match
+# rather than the other way around.
+TRANSACTION_TYPE_LABELS = {
+    "P": "Purchase",
+    "S": "Sale",
+    "S (partial)": "Sale (Partial)",
+    "S (full)": "Sale (Full)",
+    "E": "Exchange",
+}
 TICKER_RE = re.compile(r"\(([A-Z]{1,6})\)")
 
 # The PTR PDF template's field labels ("Filing Status:", "Sub-Holding Of:") are set in
@@ -189,7 +203,7 @@ def _parse_ptr_pdf(pdf_bytes: bytes) -> list[dict]:
         rows.append({
             "ticker": ticker,
             "asset_description": asset_description,
-            "transaction_type": tx_type,
+            "transaction_type": TRANSACTION_TYPE_LABELS.get(tx_type, tx_type),
             "transaction_date": tx_date,
             "notification_date": notif_date,
             "amount_range": amount.strip(),

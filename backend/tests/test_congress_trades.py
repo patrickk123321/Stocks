@@ -5,7 +5,31 @@ the PDF template's field labels ("Filing Status:", "Sub-Holding Of:") extract as
 literal NUL bytes because pdfplumber can't map that font's glyphs to Unicode.
 """
 
-from app.sources.congress_trades import _clean_asset_description, _is_valid_date
+from contextlib import contextmanager
+from unittest.mock import patch
+
+from app.sources.congress_trades import (
+    TRANSACTION_TYPE_LABELS,
+    _clean_asset_description,
+    _is_valid_date,
+    _parse_ptr_pdf,
+)
+
+
+class _FakePage:
+    def __init__(self, text: str):
+        self._text = text
+
+    def extract_text(self, layout: bool = False) -> str:
+        return self._text
+
+
+@contextmanager
+def _fake_pdf(text: str):
+    class _FakePdf:
+        pages = [_FakePage(text)]
+
+    yield _FakePdf()
 
 
 def test_clean_asset_description_strips_nul_byte_boilerplate_and_leading_ticker():
@@ -153,6 +177,37 @@ def test_clean_asset_description_strips_truncated_boilerplate_label_variants():
         "Richard R Larsen IRA D: Part of monthly portfolio rebalancing "
         "that account manager conducts Mondelez International, Inc. - Class A"
     )
+
+
+# House PTR forms use single-letter transaction-type codes; Senate rows (a separate
+# source, senate_trades.py) use full words ("Purchase"/"Sale"/"Exchange") in the same
+# transaction_type column. Without normalizing House's codes, a user sees "P" on one
+# row and "Purchase" on the next for the identical concept.
+def test_transaction_type_labels_cover_every_fields_re_alternative():
+    # Every alternative in FIELDS_RE's transaction-type group must have a label,
+    # or a real parsed row would silently fall back to the raw single-letter code.
+    assert TRANSACTION_TYPE_LABELS["P"] == "Purchase"
+    assert TRANSACTION_TYPE_LABELS["S"] == "Sale"
+    assert TRANSACTION_TYPE_LABELS["S (partial)"] == "Sale (Partial)"
+    assert TRANSACTION_TYPE_LABELS["S (full)"] == "Sale (Full)"
+    assert TRANSACTION_TYPE_LABELS["E"] == "Exchange"
+
+
+def test_parse_ptr_pdf_normalizes_house_transaction_type_to_full_word():
+    text = "Jane Smith TX5 Apple Inc. - Common Stock (AAPL) P 01/15/2026 01/20/2026 $1,001 - $15,000"
+    with patch("pdfplumber.open", lambda _bytes: _fake_pdf(text)):
+        rows = _parse_ptr_pdf(b"fake-pdf-bytes")
+    assert len(rows) == 1
+    assert rows[0]["ticker"] == "AAPL"
+    assert rows[0]["transaction_type"] == "Purchase"
+
+
+def test_parse_ptr_pdf_normalizes_partial_sale_transaction_type():
+    text = "Jane Smith TX5 Apple Inc. - Common Stock (AAPL) S (partial) 01/15/2026 01/20/2026 $1,001 - $15,000"
+    with patch("pdfplumber.open", lambda _bytes: _fake_pdf(text)):
+        rows = _parse_ptr_pdf(b"fake-pdf-bytes")
+    assert len(rows) == 1
+    assert rows[0]["transaction_type"] == "Sale (Partial)"
 
 
 def test_is_valid_date_accepts_real_dates():
