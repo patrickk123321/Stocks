@@ -26,11 +26,11 @@ const PRODUCTS = [
   },
   {
     key: "auto-trader",
-    href: null,
+    href: "/auto-trader",
     icon: Robot,
     title: "Auto-Trading Bot",
     description: "Paper-trades automatically via Alpaca, informed by the tracker and your portfolio preferences.",
-    status: "coming-soon" as const,
+    status: "live" as const,
     iconWrap: "bg-positive/15 text-positive",
     hoverBorder: "hover:border-positive/60",
     glow: "group-hover:shadow-[0_0_0_1px_rgba(52,211,153,0.35),0_16px_40px_-12px_rgba(52,211,153,0.3)]",

@@ -2,6 +2,8 @@
 meant a full day of staleness with no recovery attempt.
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from app import db, scheduler
@@ -65,3 +67,14 @@ def test_run_refresh_records_final_failure_after_exhausting_retries(temp_db):
 
     last = get_last_scrape_run("congress")
     assert last["error_count"] == -1  # -1 signals a total run failure, not per-filing errors
+
+
+def test_run_bot_check_records_to_scrape_runs_via_run_refresh(temp_db):
+    # run_bot_check just wraps run_bot_once in the same _run_refresh machinery
+    # already tested above — this only checks the wiring, not run_bot_once's
+    # own logic (covered in test_bot_runner.py).
+    with patch("app.scheduler.run_bot_once", return_value=(2, 0)):
+        scheduler.run_bot_check()
+    last = get_last_scrape_run("bot")
+    assert last["inserted"] == 2
+    assert last["error_count"] == 0

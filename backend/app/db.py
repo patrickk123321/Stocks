@@ -95,6 +95,37 @@ CREATE TABLE IF NOT EXISTS risk_profile (
     updated_at TEXT
 );
 
+-- Product 3 (Auto-Trading Bot). Single-row settings table, same pattern as
+-- risk_profile above — one bot, one set of guardrails, for this single-user app.
+CREATE TABLE IF NOT EXISTS bot_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled INTEGER NOT NULL DEFAULT 0,
+    max_trade_dollars REAL NOT NULL DEFAULT 100.0,
+    max_trades_per_day INTEGER NOT NULL DEFAULT 3,
+    cash_buffer_pct REAL NOT NULL DEFAULT 10.0,
+    updated_at TEXT
+);
+
+-- One row per order the bot attempts. rationale ties it back to which
+-- allocation gap it was closing, so the trade history reads as "why", not
+-- just "what". status starts at submit time ("submitted"/"failed") and gets
+-- refreshed by polling get_orders (no inbound webhook in this app).
+CREATE TABLE IF NOT EXISTS bot_trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_date TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    side TEXT NOT NULL DEFAULT 'buy',
+    notional REAL NOT NULL,
+    asset_class TEXT NOT NULL,
+    rationale TEXT NOT NULL,
+    status TEXT NOT NULL,
+    alpaca_order_id TEXT,
+    error_message TEXT,
+    placed_at TEXT NOT NULL,
+    filled_at TEXT,
+    filled_avg_price REAL
+);
+
 CREATE INDEX IF NOT EXISTS idx_insider_ticker ON insider_transactions(issuer_ticker);
 CREATE INDEX IF NOT EXISTS idx_insider_owner ON insider_transactions(owner_name);
 CREATE INDEX IF NOT EXISTS idx_insider_date ON insider_transactions(transaction_date);
@@ -109,6 +140,9 @@ CREATE INDEX IF NOT EXISTS idx_congress_member ON congress_trades(member_name);
 CREATE INDEX IF NOT EXISTS idx_congress_date ON congress_trades(transaction_date);
 
 CREATE INDEX IF NOT EXISTS idx_scrape_runs_category_ran_at ON scrape_runs(category, ran_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_bot_trades_run_date ON bot_trades(run_date);
+CREATE INDEX IF NOT EXISTS idx_bot_trades_placed_at ON bot_trades(placed_at DESC);
 """
 
 
@@ -135,6 +169,7 @@ def init_db():
     with get_conn() as conn:
         conn.executescript(SCHEMA)
         _ensure_column(conn, "insider_transactions", "filer_cik", "TEXT")
+    ensure_default_bot_config()
 
 
 def insert_rows(table: str, rows: list[dict]) -> int:
@@ -418,3 +453,127 @@ def save_risk_profile(
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         )
+
+
+# --- Product 3 (Auto-Trading Bot) ---
+
+def get_bot_config() -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM bot_config WHERE id = 1").fetchone()
+        return dict(row) if row else None
+
+
+def save_bot_config(
+    enabled: bool,
+    max_trade_dollars: float,
+    max_trades_per_day: int,
+    cash_buffer_pct: float,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO bot_config (id, enabled, max_trade_dollars, max_trades_per_day, cash_buffer_pct, updated_at)
+            VALUES (1, :enabled, :max_trade_dollars, :max_trades_per_day, :cash_buffer_pct, :updated_at)
+            ON CONFLICT(id) DO UPDATE SET
+                enabled = excluded.enabled,
+                max_trade_dollars = excluded.max_trade_dollars,
+                max_trades_per_day = excluded.max_trades_per_day,
+                cash_buffer_pct = excluded.cash_buffer_pct,
+                updated_at = excluded.updated_at
+            """,
+            {
+                "enabled": int(enabled),
+                "max_trade_dollars": max_trade_dollars,
+                "max_trades_per_day": max_trades_per_day,
+                "cash_buffer_pct": cash_buffer_pct,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+
+def ensure_default_bot_config() -> None:
+    """Called once from init_db() so the bot always has a config row (off, with
+    conservative guardrails) without needing a first-run setup flow the way
+    risk_profile requires the questionnaire. INSERT OR IGNORE — never clobbers
+    a row the user has already customized."""
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO bot_config (id, enabled, max_trade_dollars, max_trades_per_day, cash_buffer_pct, updated_at)
+            VALUES (1, 0, 100.0, 3, 10.0, :updated_at)
+            """,
+            {"updated_at": datetime.now(timezone.utc).isoformat()},
+        )
+
+
+def insert_bot_trade(row: dict) -> int:
+    with get_conn() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO bot_trades (run_date, ticker, side, notional, asset_class, rationale, status, alpaca_order_id, error_message, placed_at)
+            VALUES (:run_date, :ticker, :side, :notional, :asset_class, :rationale, :status, :alpaca_order_id, :error_message, :placed_at)
+            """,
+            {
+                "side": "buy",
+                "alpaca_order_id": None,
+                "error_message": None,
+                **row,
+            },
+        )
+        return cursor.lastrowid
+
+
+def update_bot_trade_status(
+    trade_id: int,
+    status: str,
+    alpaca_order_id: str | None = None,
+    error_message: str | None = None,
+    filled_at: str | None = None,
+    filled_avg_price: float | None = None,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            UPDATE bot_trades
+            SET status = :status,
+                alpaca_order_id = COALESCE(:alpaca_order_id, alpaca_order_id),
+                error_message = COALESCE(:error_message, error_message),
+                filled_at = COALESCE(:filled_at, filled_at),
+                filled_avg_price = COALESCE(:filled_avg_price, filled_avg_price)
+            WHERE id = :trade_id
+            """,
+            {
+                "trade_id": trade_id,
+                "status": status,
+                "alpaca_order_id": alpaca_order_id,
+                "error_message": error_message,
+                "filled_at": filled_at,
+                "filled_avg_price": filled_avg_price,
+            },
+        )
+
+
+def list_bot_trades(limit: int = 50, offset: int = 0) -> tuple[list[dict], int]:
+    with get_conn() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM bot_trades").fetchone()[0]
+        rows = conn.execute(
+            "SELECT * FROM bot_trades ORDER BY placed_at DESC LIMIT :limit OFFSET :offset",
+            {"limit": limit, "offset": offset},
+        ).fetchall()
+        return [dict(row) for row in rows], total
+
+
+def get_trades_for_run_date(run_date: str) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM bot_trades WHERE run_date = :run_date", {"run_date": run_date}
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_submitted_bot_trades() -> list[dict]:
+    """Trades still awaiting a fill-status refresh (see trading_engine.py's
+    refresh_pending_trade_statuses) — status hasn't moved past "submitted" yet."""
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM bot_trades WHERE status = 'submitted'").fetchall()
+        return [dict(row) for row in rows]

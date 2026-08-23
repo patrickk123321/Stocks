@@ -2,6 +2,8 @@
 run against a throwaway SQLite file so they never touch the real stocks.db.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 
 from app import db
@@ -244,3 +246,97 @@ def test_risk_profile_save_is_upsert_not_a_new_row(temp_db):
     with db.get_conn() as conn:
         count = conn.execute("SELECT COUNT(*) FROM risk_profile").fetchone()[0]
     assert count == 1
+
+
+def test_bot_config_is_seeded_with_conservative_defaults_on_init(temp_db):
+    # init_db() calls ensure_default_bot_config() — the bot should always have
+    # a config row (off, conservative guardrails), no first-run setup needed.
+    config = db.get_bot_config()
+    assert config is not None
+    assert config["enabled"] == 0
+    assert config["max_trade_dollars"] == 100.0
+    assert config["max_trades_per_day"] == 3
+    assert config["cash_buffer_pct"] == 10.0
+
+
+def test_ensure_default_bot_config_does_not_clobber_a_customized_row(temp_db):
+    db.save_bot_config(enabled=True, max_trade_dollars=500.0, max_trades_per_day=1, cash_buffer_pct=25.0)
+    db.ensure_default_bot_config()  # called again, e.g. by a second init_db()
+    config = db.get_bot_config()
+    assert config["enabled"] == 1
+    assert config["max_trade_dollars"] == 500.0
+
+
+def test_save_bot_config_is_upsert_not_a_new_row(temp_db):
+    db.save_bot_config(enabled=True, max_trade_dollars=100.0, max_trades_per_day=3, cash_buffer_pct=10.0)
+    db.save_bot_config(enabled=False, max_trade_dollars=200.0, max_trades_per_day=5, cash_buffer_pct=20.0)
+    config = db.get_bot_config()
+    assert config["enabled"] == 0
+    assert config["max_trade_dollars"] == 200.0
+    with db.get_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM bot_config").fetchone()[0]
+    assert count == 1
+
+
+def test_insert_and_list_bot_trades(temp_db):
+
+    trade_id = db.insert_bot_trade({
+        "run_date": "2026-08-23",
+        "ticker": "VTI",
+        "notional": 100.0,
+        "asset_class": "stock",
+        "rationale": "Closing stock underweight",
+        "status": "submitted",
+        "placed_at": datetime.now(timezone.utc).isoformat(),
+    })
+    assert trade_id is not None
+
+    rows, total = db.list_bot_trades()
+    assert total == 1
+    assert rows[0]["ticker"] == "VTI"
+    assert rows[0]["side"] == "buy"  # default applied
+
+
+def test_update_bot_trade_status_sets_fill_info(temp_db):
+
+    trade_id = db.insert_bot_trade({
+        "run_date": "2026-08-23", "ticker": "VTI", "notional": 100.0, "asset_class": "stock",
+        "rationale": "test", "status": "submitted", "alpaca_order_id": "order-1",
+        "placed_at": datetime.now(timezone.utc).isoformat(),
+    })
+    db.update_bot_trade_status(trade_id, "filled", filled_at="2026-08-23T14:30:00+00:00", filled_avg_price=225.50)
+
+    rows, _ = db.list_bot_trades()
+    assert rows[0]["status"] == "filled"
+    assert rows[0]["filled_avg_price"] == 225.50
+    assert rows[0]["alpaca_order_id"] == "order-1"  # untouched, not clobbered by COALESCE
+
+
+def test_get_trades_for_run_date_filters_correctly(temp_db):
+
+    now = datetime.now(timezone.utc).isoformat()
+    db.insert_bot_trade({
+        "run_date": "2026-08-23", "ticker": "VTI", "notional": 100.0, "asset_class": "stock",
+        "rationale": "x", "status": "submitted", "placed_at": now,
+    })
+    db.insert_bot_trade({
+        "run_date": "2026-08-22", "ticker": "BND", "notional": 50.0, "asset_class": "bond",
+        "rationale": "x", "status": "submitted", "placed_at": now,
+    })
+    assert len(db.get_trades_for_run_date("2026-08-23")) == 1
+    assert len(db.get_trades_for_run_date("2026-08-21")) == 0
+
+
+def test_get_submitted_bot_trades_only_returns_pending(temp_db):
+    now = datetime.now(timezone.utc).isoformat()
+    db.insert_bot_trade({
+        "run_date": "2026-08-23", "ticker": "VTI", "notional": 100.0, "asset_class": "stock",
+        "rationale": "x", "status": "submitted", "placed_at": now,
+    })
+    db.insert_bot_trade({
+        "run_date": "2026-08-23", "ticker": "BND", "notional": 50.0, "asset_class": "bond",
+        "rationale": "x", "status": "failed", "placed_at": now,
+    })
+    pending = db.get_submitted_bot_trades()
+    assert len(pending) == 1
+    assert pending[0]["ticker"] == "VTI"

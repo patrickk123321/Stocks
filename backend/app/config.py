@@ -24,3 +24,5 @@ DB_PATH = os.getenv("STOCKS_DB_PATH", "stocks.db")
 # at call time and reports a clear error rather than failing app startup.
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
+ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "").strip()
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "").strip()

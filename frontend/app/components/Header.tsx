@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 const NAV_ITEMS = [
   { key: "trade-tracker", href: "/trade-tracker", label: "Trade Tracker", icon: ChartLineUp },
   { key: "recommendations", href: "/recommendations", label: "Recommendations", icon: Wallet },
-  { key: "auto-trader", href: null, label: "Auto-Trading Bot", icon: Robot },
+  { key: "auto-trader", href: "/auto-trader", label: "Auto-Trading Bot", icon: Robot },
 ] as const;
 
 export default function Header() {
@@ -29,20 +29,7 @@ export default function Header() {
         <nav className="flex items-center gap-1">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const active = item.href !== null && (pathname === item.href || pathname.startsWith(`${item.href}/`));
-
-            if (item.href === null) {
-              return (
-                <span
-                  key={item.key}
-                  title="Coming soon"
-                  className="flex cursor-not-allowed items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground/50"
-                >
-                  <Icon size={16} aria-hidden="true" />
-                  <span className="hidden sm:inline">{item.label}</span>
-                </span>
-              );
-            }
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
               <Link

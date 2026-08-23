@@ -19,7 +19,7 @@ export class RateLimitedError extends Error {
   }
 }
 
-async function throwForStatus(res: Response, fallbackMessage: string): Promise<never> {
+export async function throwForStatus(res: Response, fallbackMessage: string): Promise<never> {
   if (res.status === 429) {
     const body = await res.json().catch(() => null);
     throw new RateLimitedError(body?.detail || "Please wait a moment before trying again.");

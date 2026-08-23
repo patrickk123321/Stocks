@@ -6,7 +6,7 @@ A personal investing platform, built in three parts:
 2. **Portfolio recommendation bot** — recommends stocks/ETFs and allocation percentages based on your risk/diversification/sector preferences and your current holdings (via Alpaca connection or screenshot upload).
 3. **Auto-trading bot** — paper-trades via Alpaca based on the outputs of parts 1 and 2.
 
-Built one part at a time. Part 1 is in progress.
+Built one part at a time. All three parts are live.
 
 ## Stack
 - `frontend/` — Next.js (TypeScript)
