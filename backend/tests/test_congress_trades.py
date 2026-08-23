@@ -36,6 +36,125 @@ def test_clean_asset_description_strips_leading_stray_ticker_alone():
     assert _clean_asset_description("(MSFT) Microsoft Corp. - Common Stock") == "Microsoft Corp. - Common Stock"
 
 
+# A second, distinct manifestation of the same root cause as the NUL-byte tests above:
+# here pdfplumber drops the unmappable label glyphs entirely instead of emitting NUL
+# bytes, collapsing "Filing Status: New Sub-Holding Of:" straight down to literal
+# "F S: New S O:". Found live in ~310 real stored rows (see congress_trades.py).
+def test_clean_asset_description_strips_plain_text_boilerplate_with_leaked_number():
+    raw = (
+        "50,000 F S: New S O: R.W. Allen & Associates, Inc. > RWA&A - Securities "
+        "SP Netflix, Inc. - Common Stock"
+    )
+    assert _clean_asset_description(raw) == (
+        "R.W. Allen & Associates, Inc. > RWA&A - Securities SP Netflix, Inc. - Common Stock"
+    )
+
+
+def test_clean_asset_description_strips_plain_text_boilerplate_wrapped_ticker_and_bracket_tag():
+    raw = "Common Stock (MLM) [ST] F S: New DC PTC Inc. - Common Stock"
+    assert _clean_asset_description(raw) == "DC PTC Inc. - Common Stock"
+
+
+def test_clean_asset_description_strips_plain_text_boilerplate_no_sub_holding():
+    raw = "[OP] F S: New D: Put Option SP Nokia Corporation Sponsored"
+    assert _clean_asset_description(raw) == "D: Put Option SP Nokia Corporation Sponsored"
+
+
+def test_clean_asset_description_strips_plain_text_boilerplate_amended():
+    raw = (
+        "50,000 F S: Amended S O: United Bank Brokerage Account 2000134517 "
+        "SP Quest Diagnostics Incorporated"
+    )
+    assert _clean_asset_description(raw) == (
+        "United Bank Brokerage Account 2000134517 SP Quest Diagnostics Incorporated"
+    )
+
+
+def test_clean_asset_description_strips_truncated_leaked_number_before_boilerplate():
+    # A text-window boundary can cut a leaked share count down to a partial digit
+    # run ("0,000" / "00" instead of "50,000" / "100") — still noise, still stripped.
+    assert _clean_asset_description("0,000 F S: New S O: Registered Index Linked Annuity") == (
+        "Registered Index Linked Annuity"
+    )
+    assert _clean_asset_description("00 F S: New S O: Registered Index Linked Annuity") == (
+        "Registered Index Linked Annuity"
+    )
+
+
+def test_clean_asset_description_strips_leaked_footnote_reference():
+    assert _clean_asset_description("200? F S: New DC Somnigroup International Inc.") == (
+        "DC Somnigroup International Inc."
+    )
+
+
+def test_clean_asset_description_preserves_legitimate_comment_field():
+    raw = (
+        "5,000,000 F S: New D: Contribution of 7,704 shares held personally to "
+        "Donor-Advised Fund. SP Amazon.com, Inc. - Common Stock"
+    )
+    assert _clean_asset_description(raw) == (
+        "D: Contribution of 7,704 shares held personally to Donor-Advised Fund. "
+        "SP Amazon.com, Inc. - Common Stock"
+    )
+
+
+# A third variant found live: sometimes the "Filing Status: New" half is dropped
+# entirely and only the "Sub-Holding Of:" half survives as bare plain text "S O:".
+def test_clean_asset_description_strips_bare_sub_holding_label():
+    raw = "S O: 150 Main Street Trust > Bank of America D: Ticker 8306 JP Netflix, Inc. - Common Stock"
+    assert _clean_asset_description(raw) == (
+        "150 Main Street Trust > Bank of America D: Ticker 8306 JP Netflix, Inc. - Common Stock"
+    )
+
+
+def test_clean_asset_description_strips_leaked_footnote_ref_and_bare_sub_holding_together():
+    raw = "200? S O: 150 Main Street Trust > Bank of America D: Ticker SAN SM Biogen Inc. - Common Stock"
+    assert _clean_asset_description(raw) == (
+        "150 Main Street Trust > Bank of America D: Ticker SAN SM Biogen Inc. - Common Stock"
+    )
+
+
+def test_clean_asset_description_strips_leaked_footnote_ref_alone():
+    assert _clean_asset_description("200? SP Abbott Laboratories Common Stock") == (
+        "SP Abbott Laboratories Common Stock"
+    )
+    assert _clean_asset_description("200?") == ""
+
+
+# A fourth variant found live: the extraction window sometimes truncates the
+# boilerplate label itself, chopping arbitrary leading characters off
+# "F S: New S O:" rather than (or in addition to) what precedes it.
+def test_clean_asset_description_strips_truncated_boilerplate_label_variants():
+    assert _clean_asset_description(
+        "S: New S O: Hern Family Foundation D: Exxon Mobile began trading as "
+        "Exxon Mobile Holdings JT Honeywell Aerospace Inc. - Common"
+    ) == (
+        "Hern Family Foundation D: Exxon Mobile began trading as "
+        "Exxon Mobile Holdings JT Honeywell Aerospace Inc. - Common"
+    )
+    assert _clean_asset_description(
+        ": New S O: Richard R Larsen IRA D: Part of monthly portfolio rebalancing "
+        "that account manager conducts Essex Property Trust, Inc. Common"
+    ) == (
+        "Richard R Larsen IRA D: Part of monthly portfolio rebalancing "
+        "that account manager conducts Essex Property Trust, Inc. Common"
+    )
+    assert _clean_asset_description(
+        "New S O: Richard R Larsen IRA D: Part of monthly portfolio rebalancing "
+        "that account manager conducts Verisk Analytics, Inc. - Common Stock"
+    ) == (
+        "Richard R Larsen IRA D: Part of monthly portfolio rebalancing "
+        "that account manager conducts Verisk Analytics, Inc. - Common Stock"
+    )
+    assert _clean_asset_description(
+        "ew S O: Richard R Larsen IRA D: Part of monthly portfolio rebalancing "
+        "that account manager conducts Mondelez International, Inc. - Class A"
+    ) == (
+        "Richard R Larsen IRA D: Part of monthly portfolio rebalancing "
+        "that account manager conducts Mondelez International, Inc. - Class A"
+    )
+
+
 def test_is_valid_date_accepts_real_dates():
     assert _is_valid_date("12/31/2025") is True
     assert _is_valid_date("01/01/2026") is True

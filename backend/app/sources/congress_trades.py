@@ -57,13 +57,54 @@ BOILERPLATE_LABEL_RE = re.compile(
 )
 LEADING_TICKER_RE = re.compile(r"^\([A-Z]{1,6}\)\s*")
 
+# A second manifestation of the same font/glyph-mapping issue as BOILERPLATE_LABEL_RE
+# above: sometimes the unmapped label glyphs are dropped entirely instead of coming
+# through as NUL bytes, collapsing "Filing Status: New Sub-Holding Of:" straight down
+# to literal "F S: New S O:" with nothing standing in for the missing letters. Verified
+# against ~310 real stored rows. A leaked share-count number (from the previous field's
+# text window) sometimes lands right before it, e.g. "50,000 F S: New S O: ..." — that's
+# swept up in the same match since it's never meaningful on its own here. Keep whatever
+# real value follows: a sub-holding account/trust name, a "D:" comment, an ownership
+# code (SP/JT/DC), all of which are genuine filing content, not boilerplate.
+BOILERPLATE_LABEL_PLAIN_RE = re.compile(
+    r"(?:[\d,]+\s+)?F\s+S:\s*(?:New|Amended?)\b\s*(?:S\s+O:\s*)?",
+    re.IGNORECASE,
+)
+# A stray leaked ticker can also show up wrapped as "Common Stock (TICKER)" or
+# "Stock (TICKER)", not just the bare "(TICKER)" LEADING_TICKER_RE handles.
+LEADING_TICKER_WRAPPED_RE = re.compile(r"^(?:Common\s+)?Stock\s*\([A-Z]{1,6}\)\s*", re.IGNORECASE)
+# Asset-type bracket tags (e.g. "[ST]", "[OP]") that survive the label strip above
+# with nothing left to attach to are leftover noise, not useful on their own.
+STRAY_BRACKET_TAG_RE = re.compile(r"\[[A-Z]{2,4}\]\s*")
+# A superscript footnote-reference digit sometimes extracts as a literal "?" — e.g. a
+# real reference number collapses to "200?". Not recoverable, so drop it as noise.
+LEAKED_FOOTNOTE_REF_RE = re.compile(r"^\d+\?\s*")
+# Sometimes only the second half of the label ("Sub-Holding Of:") survives as plain
+# text with the "Filing Status: New" half dropped entirely, leaving a bare leading
+# "S O:" once the footnote-reference noise above it is stripped. Same treatment as
+# the "S O:" half of BOILERPLATE_LABEL_PLAIN_RE — drop the label, keep what follows.
+LEADING_BARE_SUB_HOLDING_RE = re.compile(r"^S\s+O:\s*", re.IGNORECASE)
+# And sometimes the extraction window truncates the boilerplate label itself, chopping
+# arbitrary leading characters off "F S: New S O:" — e.g. "S: New S O:", ": New S O:",
+# "New S O:", even "ew S O:". Matched against the exact truncation points found live.
+BOILERPLATE_LABEL_TRUNCATED_RE = re.compile(
+    r"^(?:F\s*)?(?:S:\s*|:\s*)?(?:N?ew|Amended?)\b\s*S\s+O:\s*",
+    re.IGNORECASE,
+)
+
 
 def _clean_asset_description(raw: str) -> str:
     cleaned = BOILERPLATE_LABEL_RE.sub("", raw)
     cleaned = cleaned.replace("\x00", "")
+    cleaned = BOILERPLATE_LABEL_PLAIN_RE.sub("", cleaned)
     # A stray "(TICKER)" can leak in from the previous row's window; the real
     # ticker already has its own column, so drop a leading one here as noise.
+    cleaned = LEADING_TICKER_WRAPPED_RE.sub("", cleaned)
     cleaned = LEADING_TICKER_RE.sub("", cleaned)
+    cleaned = STRAY_BRACKET_TAG_RE.sub("", cleaned)
+    cleaned = LEAKED_FOOTNOTE_REF_RE.sub("", cleaned)
+    cleaned = BOILERPLATE_LABEL_TRUNCATED_RE.sub("", cleaned)
+    cleaned = LEADING_BARE_SUB_HOLDING_RE.sub("", cleaned)
     return re.sub(r"\s+", " ", cleaned).strip(" -")
 
 
