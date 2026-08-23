@@ -9,7 +9,7 @@ straight into storage" principle used for source-verification elsewhere.
 import base64
 
 import anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import ANTHROPIC_API_KEY
 
@@ -20,14 +20,16 @@ EXTRACTION_PROMPT = (
     "Extract every individual position visible: its ticker symbol, number of shares (if "
     "shown), and current dollar market value (if shown). If a field isn't visible for a "
     "position, leave it null rather than guessing at a number. Ignore totals/summary rows "
-    "and anything that isn't an individual holding."
+    "and anything that isn't an individual holding. For uninvested cash, a money-market "
+    "sweep fund, or any settlement/cash balance line, use the ticker \"CASH\" rather than "
+    "leaving it blank — do not omit it."
 )
 
 
 class ExtractedHolding(BaseModel):
     ticker: str
-    shares: float | None = None
-    value: float | None = None
+    shares: float | None = Field(None, ge=0)
+    value: float | None = Field(None, ge=0)
 
 
 class ExtractedHoldings(BaseModel):

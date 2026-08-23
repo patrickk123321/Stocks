@@ -53,8 +53,15 @@ export default function PortfolioUpload({ onSaved }: PortfolioUploadProps) {
 
   const addHolding = () => setHoldings((prev) => [...(prev ?? []), emptyHolding()]);
 
+  const missingTickerCount = holdings?.filter((h) => h.ticker.trim() === "").length ?? 0;
+  const hasNegativeValue = holdings?.some((h) => (h.shares ?? 0) < 0 || (h.value ?? 0) < 0) ?? false;
+
   const handleSave = async () => {
     if (!holdings) return;
+    if (hasNegativeValue) {
+      setError("Shares and value can't be negative — fix the highlighted row(s) below.");
+      return;
+    }
     const valid = holdings.filter((h) => h.ticker.trim() !== "");
     if (valid.length === 0) {
       setError("Add at least one holding with a ticker before saving.");
@@ -99,24 +106,32 @@ export default function PortfolioUpload({ onSaved }: PortfolioUploadProps) {
                     <input
                       value={h.ticker}
                       onChange={(e) => updateHolding(i, { ticker: e.target.value.toUpperCase() })}
-                      placeholder="AAPL"
-                      className={`w-24 rounded-md border border-border bg-card px-2 py-1.5 font-mono text-sm text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+                      placeholder="AAPL or CASH"
+                      className={`w-28 rounded-md border bg-card px-2 py-1.5 font-mono text-sm text-card-foreground outline-none focus:border-accent ${FOCUS_RING} ${
+                        h.ticker.trim() === "" ? "border-warning" : "border-border"
+                      }`}
                     />
                   </td>
                   <td className="px-3 py-2">
                     <input
                       type="number"
+                      min="0"
                       value={h.shares ?? ""}
                       onChange={(e) => updateHolding(i, { shares: e.target.value === "" ? null : Number(e.target.value) })}
-                      className={`w-24 rounded-md border border-border bg-card px-2 py-1.5 font-mono text-sm text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+                      className={`w-24 rounded-md border bg-card px-2 py-1.5 font-mono text-sm text-card-foreground outline-none focus:border-accent ${FOCUS_RING} ${
+                        (h.shares ?? 0) < 0 ? "border-destructive" : "border-border"
+                      }`}
                     />
                   </td>
                   <td className="px-3 py-2">
                     <input
                       type="number"
+                      min="0"
                       value={h.value ?? ""}
                       onChange={(e) => updateHolding(i, { value: e.target.value === "" ? null : Number(e.target.value) })}
-                      className={`w-28 rounded-md border border-border bg-card px-2 py-1.5 font-mono text-sm text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+                      className={`w-28 rounded-md border bg-card px-2 py-1.5 font-mono text-sm text-card-foreground outline-none focus:border-accent ${FOCUS_RING} ${
+                        (h.value ?? 0) < 0 ? "border-destructive" : "border-border"
+                      }`}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -141,6 +156,16 @@ export default function PortfolioUpload({ onSaved }: PortfolioUploadProps) {
           <Plus size={14} aria-hidden="true" />
           Add holding
         </button>
+
+        {missingTickerCount > 0 && (
+          <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
+            <WarningCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span>
+              {missingTickerCount === 1 ? "1 row is" : `${missingTickerCount} rows are`} missing a ticker and won&apos;t be
+              saved. Add one (use &quot;CASH&quot; for uninvested cash) or remove the row.
+            </span>
+          </div>
+        )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 

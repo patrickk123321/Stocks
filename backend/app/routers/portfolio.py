@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from app.db import (
     get_latest_portfolio_snapshot,
@@ -17,8 +17,16 @@ ACCEPTED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp", "i
 
 class HoldingInput(BaseModel):
     ticker: str
-    shares: float | None = None
-    value: float | None = None
+    shares: float | None = Field(None, ge=0)
+    value: float | None = Field(None, ge=0)
+
+    @field_validator("ticker")
+    @classmethod
+    def ticker_must_be_non_empty(cls, v: str) -> str:
+        trimmed = v.strip().upper()
+        if not trimmed:
+            raise ValueError("ticker must not be empty")
+        return trimmed
 
 
 class RiskProfileInput(BaseModel):
