@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import date, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -13,15 +14,32 @@ logger = logging.getLogger("stocks.scheduler")
 
 DAILY_LOOKBACK_DAYS = 7
 
+# One failed 9am run used to mean a full day of staleness with no recovery
+# attempt — a transient network blip against SEC/House Clerk/FMP shouldn't cost
+# that much. Two retries with a short backoff before giving up and recording a
+# real failure. Module-level (not a function default) so tests can shrink it.
+RETRY_BACKOFFS_SECONDS = [30, 120]
+
 
 def _run_refresh(name: str, fn, **kwargs) -> None:
-    try:
-        inserted, errors = fn(**kwargs)
-        logger.info("refreshed %s: %d rows inserted, %d failures", name, inserted, errors)
-        record_scrape_run(name, inserted, errors)
-    except Exception:
-        logger.exception("refresh failed for %s", name)
-        record_scrape_run(name, 0, -1)  # -1 signals a total run failure, not just per-filing errors
+    attempts = len(RETRY_BACKOFFS_SECONDS) + 1
+    for attempt in range(attempts):
+        try:
+            inserted, errors = fn(**kwargs)
+            logger.info("refreshed %s: %d rows inserted, %d failures", name, inserted, errors)
+            record_scrape_run(name, inserted, errors)
+            return
+        except Exception:
+            if attempt < len(RETRY_BACKOFFS_SECONDS):
+                backoff = RETRY_BACKOFFS_SECONDS[attempt]
+                logger.warning(
+                    "refresh failed for %s (attempt %d/%d), retrying in %ds",
+                    name, attempt + 1, attempts, backoff, exc_info=True,
+                )
+                time.sleep(backoff)
+            else:
+                logger.exception("refresh failed for %s after %d attempts", name, attempts)
+                record_scrape_run(name, 0, -1)  # -1 signals a total run failure, not just per-filing errors
 
 
 def backfill_if_empty() -> None:

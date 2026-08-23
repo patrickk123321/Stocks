@@ -79,10 +79,16 @@ _add("stock", "Materials",
      "VMC", "MLM", "ALB", "CTVA", "IFF", "PKG", "IP", "AVY", "BALL", "CE")
 
 # --- Major international ADRs ---
+# Split by actual GICS-aligned sector rather than one catch-all "Consumer" bucket —
+# a single mixed bucket would silently defeat sector-concentration detection (e.g. a
+# portfolio heavy in SHEL+BP+TTE would never trigger an energy-concentration flag).
 _add("stock", "International — Technology", "TSM", "ASML", "SAP", "BABA", "JD", "PDD",
      "BIDU", "TCEHY", "SONY", "SFTBY")
-_add("stock", "International — Consumer", "NVO", "SHEL", "UL", "DEO", "BUD", "TM",
-     "HMC", "NSANY", "HSBC", "RIO", "BHP", "GSK", "AZN", "SNY", "TTE", "BP")
+_add("stock", "International — Energy", "SHEL", "TTE", "BP")
+_add("stock", "International — Healthcare", "NVO", "GSK", "AZN", "SNY")
+_add("stock", "International — Financials", "HSBC")
+_add("stock", "International — Materials", "RIO", "BHP")
+_add("stock", "International — Consumer", "UL", "DEO", "BUD", "TM", "HMC", "NSANY")
 
 # --- Broad-market equity ETFs ---
 _add("stock", "US Broad Market",
@@ -139,7 +145,12 @@ _add("stock", "US Broad Market", "VFIAX", "VTSAX", "FXAIX", "FSKAX", "FZROX", "S
      "SWTSX", "VIGAX", "VTCLX", "FSPGX")
 _add("stock", "International Equity", "VTIAX", "FTIHX", "FSPSX", "VGTSX")
 _add("bond", "Aggregate/Broad Bond", "VBTLX", "FXNAX", "SWAGX", "VBMFX")
-_add("stock", "Target-Date/Allocation", "VFORX", "VTHRX", "VTTSX", "FDKLX", "TRRIX")
+
+# Target-date/allocation funds (VFORX, VTHRX, VTTSX, FDKLX, TRRIX, etc.) are
+# deliberately NOT listed here — they're genuinely blended stock/bond/cash funds,
+# and forcing one into a single asset_class would overstate equity exposure and
+# skew sector percentages. Left unclassified rather than guessed, matching
+# get_ticker_info's stated fallback philosophy.
 
 
 def get_ticker_info(ticker: str) -> dict[str, str]:

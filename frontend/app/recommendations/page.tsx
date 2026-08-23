@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import PortfolioUpload from "../components/PortfolioUpload";
 import RecommendationsView from "../components/RecommendationsView";
 import RiskQuestionnaire from "../components/RiskQuestionnaire";
+import SnapshotHistory from "../components/SnapshotHistory";
 import {
   getLatestSnapshot,
   getRecommendations,
@@ -102,6 +103,7 @@ export default function RecommendationsPage() {
                 Based on a snapshot uploaded {new Date(snapshot.uploaded_at).toLocaleString()} — not live-updating.
               </p>
             )}
+            <SnapshotHistory />
           </>
         )}
       </main>

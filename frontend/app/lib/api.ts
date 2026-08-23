@@ -9,6 +9,24 @@ export class BackendUnreachableError extends Error {
   }
 }
 
+// Thrown when the backend's per-endpoint cooldown guard (app/rate_limit.py)
+// rejects a call — a guard against an accidental double-click or client-side
+// loop, not real rate-limiting. Carries the backend's own "wait Ns" message.
+export class RateLimitedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RateLimitedError";
+  }
+}
+
+async function throwForStatus(res: Response, fallbackMessage: string): Promise<never> {
+  if (res.status === 429) {
+    const body = await res.json().catch(() => null);
+    throw new RateLimitedError(body?.detail || "Please wait a moment before trying again.");
+  }
+  throw new Error(fallbackMessage);
+}
+
 const LIST_TIMEOUT_MS = 15_000;
 // A real refresh triggers live scraping of SEC/House Clerk filings and can
 // legitimately take well over a minute — a short timeout here would cancel
@@ -79,11 +97,34 @@ export function buildExportUrl(category: Category, q: string, options: FetchTrad
   return `${API_BASE}/api/${category}/export?${params.toString()}`;
 }
 
+export interface ExportResult {
+  blob: Blob;
+  totalMatched: number;
+  rowCount: number;
+  truncated: boolean;
+}
+
+// Fetches the export via JS (rather than a plain <a href> navigation) so the
+// truncation-signal response headers can be inspected before the download —
+// see backend/app/csv_export.py's export_headers.
+export async function fetchExportCsv(category: Category, q: string, options: FetchTradesOptions = {}): Promise<ExportResult> {
+  const params = buildTradesParams(q, options);
+  const res = await apiFetch(`/api/${category}/export?${params.toString()}`, {}, REFRESH_TIMEOUT_MS);
+  if (!res.ok) {
+    throw new Error(`Failed to export ${category}: ${res.status}`);
+  }
+  const totalMatched = Number(res.headers.get("X-Total-Matched") ?? "0");
+  const rowCount = Number(res.headers.get("X-Export-Row-Count") ?? "0");
+  const truncated = res.headers.get("X-Export-Truncated") === "true";
+  const blob = await res.blob();
+  return { blob, totalMatched, rowCount, truncated };
+}
+
 export async function refreshTrades(category: Category): Promise<{ inserted: number; errors: number }> {
   const extra = category === "congress" ? `?year=${new Date().getFullYear()}` : "";
   const res = await apiFetch(`/api/${category}/refresh${extra}`, { method: "POST" }, REFRESH_TIMEOUT_MS);
   if (!res.ok) {
-    throw new Error(`Failed to refresh ${category}: ${res.status}`);
+    await throwForStatus(res, `Failed to refresh ${category}: ${res.status}`);
   }
   return res.json();
 }

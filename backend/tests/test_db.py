@@ -113,8 +113,9 @@ def test_query_all_rows_ignores_pagination_and_respects_cap(temp_db, monkeypatch
     db.insert_rows("insider_transactions", [
         {"accession_no": str(i), "transaction_date": f"2026-01-{i:02d}"} for i in range(1, 6)
     ])
-    rows = db.query_all_rows("insider_transactions", [], None, "transaction_date", set())
+    rows, total = db.query_all_rows("insider_transactions", [], None, "transaction_date", set())
     assert len(rows) == 3  # capped, not the full 5 — export is a safety-capped dump, not true pagination
+    assert total == 5  # but the true total is still reported, so a caller can detect truncation
 
 
 def _holding(accession_no, filer_cik, cusip, period, shares, value=1000.0):
@@ -195,6 +196,33 @@ def test_portfolio_snapshot_latest_returns_most_recent(temp_db):
     db.save_portfolio_snapshot([{"ticker": "MSFT", "shares": 1, "value": 200.0}])
     latest = db.get_latest_portfolio_snapshot()
     assert latest["holdings"][0]["ticker"] == "MSFT"
+
+
+def test_list_portfolio_snapshots_is_empty_with_no_uploads(temp_db):
+    assert db.list_portfolio_snapshots() == []
+
+
+def test_list_portfolio_snapshots_returns_most_recent_first_with_summaries(temp_db):
+    # Every upload after the first used to be invisible — this is the fix.
+    db.save_portfolio_snapshot([{"ticker": "AAPL", "shares": 1, "value": 100.0}])
+    db.save_portfolio_snapshot([
+        {"ticker": "MSFT", "shares": 1, "value": 200.0},
+        {"ticker": "BND", "shares": 2, "value": 50.0},
+    ])
+    summaries = db.list_portfolio_snapshots()
+    assert len(summaries) == 2
+    assert summaries[0]["holding_count"] == 2
+    assert summaries[0]["total_value"] == 250.0
+    assert summaries[1]["holding_count"] == 1
+    assert summaries[1]["total_value"] == 100.0
+    # Full holdings aren't included — these are lightweight summaries only.
+    assert "holdings" not in summaries[0]
+
+
+def test_list_portfolio_snapshots_respects_limit(temp_db):
+    for i in range(5):
+        db.save_portfolio_snapshot([{"ticker": "AAPL", "shares": 1, "value": float(i)}])
+    assert len(db.list_portfolio_snapshots(limit=2)) == 2
 
 
 def test_risk_profile_round_trip(temp_db):

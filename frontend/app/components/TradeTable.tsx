@@ -17,8 +17,9 @@ import { useEffect, useState } from "react";
 import {
   BackendUnreachableError,
   Category,
+  RateLimitedError,
   ScrapeStatus,
-  buildExportUrl,
+  fetchExportCsv,
   fetchStatus,
   fetchTrades,
   refreshTrades,
@@ -90,6 +91,8 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
   const [expanded, setExpanded] = useState<number | null>(null);
   const [loadToken, setLoadToken] = useState(0);
   const [lastRun, setLastRun] = useState<ScrapeStatus | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   const refreshStatus = async () => {
     try {
@@ -169,19 +172,47 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       await load(filters);
       await refreshStatus();
     } catch (err) {
-      setError(err instanceof BackendUnreachableError ? err.message : "Refresh failed — try again in a moment.");
+      setError(
+        err instanceof BackendUnreachableError || err instanceof RateLimitedError
+          ? err.message
+          : "Refresh failed — try again in a moment.",
+      );
     } finally {
       setRefreshing(false);
     }
   };
 
-  const exportUrl = buildExportUrl(category, filters.q, {
-    sort: filters.sort,
-    order: filters.order,
-    dateFrom: filters.dateFrom || undefined,
-    dateTo: filters.dateTo || undefined,
-    actor: filters.actor || undefined,
-  });
+  const handleExport = async () => {
+    setExporting(true);
+    setExportNotice(null);
+    setError(null);
+    try {
+      const result = await fetchExportCsv(category, filters.q, {
+        sort: filters.sort,
+        order: filters.order,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        actor: filters.actor || undefined,
+      });
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${category}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      if (result.truncated) {
+        setExportNotice(
+          `Exported ${result.rowCount.toLocaleString()} of ${result.totalMatched.toLocaleString()} matching rows — narrow your filters to get the rest.`,
+        );
+      }
+    } catch (err) {
+      setError(err instanceof BackendUnreachableError ? err.message : "Export failed — try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -259,14 +290,25 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           </span>
         )}
 
-        <a
-          href={exportUrl}
-          className={`ml-auto flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted ${FOCUS_RING}`}
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className={`ml-auto flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
         >
           <DownloadSimple size={13} aria-hidden="true" />
-          Export CSV
-        </a>
+          {exporting ? "Exporting…" : "Export CSV"}
+        </button>
       </div>
+
+      {exportNotice && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-xs text-warning"
+        >
+          <WarningCircle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <span>{exportNotice}</span>
+        </div>
+      )}
 
       {!loading && !error && rows.length > 0 && <StatTiles total={total} rows={rows} summary={summary} />}
 
@@ -398,6 +440,11 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                   />
                   <div className="flex min-w-0 items-center gap-3">
                     {badgeValue && badge(badgeLabel(summary.badgeKey!, badgeValue), badgeTone(summary.badgeKey!, badgeValue))}
+                    {chamber && (
+                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {chamber}
+                      </span>
+                    )}
                     <div className="min-w-0">
                       <button
                         onClick={(e) => {
@@ -429,11 +476,6 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-4">
-                    {chamber && (
-                      <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground sm:inline">
-                        {chamber}
-                      </span>
-                    )}
                     <div className="hidden text-right sm:block">
                       {summary.metaKey && (
                         <p className="font-mono text-xs text-card-foreground">

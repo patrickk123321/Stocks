@@ -84,6 +84,14 @@ def test_clean_asset_description_strips_plain_text_boilerplate_no_sub_holding():
     assert _clean_asset_description(raw) == "D: Put Option SP Nokia Corporation Sponsored"
 
 
+def test_clean_asset_description_preserves_mid_string_bracket_tag():
+    # STRAY_BRACKET_TAG_RE only strips a bracket tag at the very start — House PTR
+    # filings have a real "Asset Type" column using this exact [XX] format as
+    # legitimate data, so a tag appearing after real content must survive.
+    raw = "Growth Partners Roth IRA Apple Inc. - Common Stock [ST]"
+    assert _clean_asset_description(raw) == "Growth Partners Roth IRA Apple Inc. - Common Stock [ST]"
+
+
 def test_clean_asset_description_strips_plain_text_boilerplate_amended():
     raw = (
         "50,000 F S: Amended S O: United Bank Brokerage Account 2000134517 "

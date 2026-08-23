@@ -51,3 +51,22 @@ def test_mid_cap_international_and_mutual_fund_tickers_are_covered():
     assert get_ticker_info("TSM") == {"asset_class": "stock", "sector": "International — Technology"}
     assert get_ticker_info("SOFI") == {"asset_class": "stock", "sector": "Financials"}
     assert get_ticker_info("VTSAX") == {"asset_class": "stock", "sector": "US Broad Market"}
+
+
+def test_international_adrs_are_split_by_actual_sector_not_one_mixed_bucket():
+    # Regression guard: these used to all share one "International — Consumer"
+    # bucket, which meant a portfolio heavy in international energy names could
+    # never trigger a sector-concentration flag (silently absorbed into "Consumer").
+    assert get_ticker_info("SHEL")["sector"] == "International — Energy"
+    assert get_ticker_info("BP")["sector"] == "International — Energy"
+    assert get_ticker_info("NVO")["sector"] == "International — Healthcare"
+    assert get_ticker_info("HSBC")["sector"] == "International — Financials"
+    assert get_ticker_info("RIO")["sector"] == "International — Materials"
+    assert get_ticker_info("UL")["sector"] == "International — Consumer"
+
+
+def test_target_date_funds_are_unclassified_not_forced_into_stock():
+    # These are genuinely blended stock/bond/cash funds — classifying one as pure
+    # equity would overstate real stock exposure in compute_allocation.
+    for ticker in ("VFORX", "VTHRX", "VTTSX", "FDKLX", "TRRIX"):
+        assert get_ticker_info(ticker) == {"asset_class": "Unclassified", "sector": "Unclassified"}

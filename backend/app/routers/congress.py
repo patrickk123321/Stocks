@@ -1,11 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app.csv_export import rows_to_csv
+from app.csv_export import export_headers, rows_to_csv
 from app.db import query_all_rows, query_rows, record_scrape_run
+from app.rate_limit import cooldown
 from app.sources.congress_trades import refresh_all_congress_trades
 
 router = APIRouter(prefix="/api/congress", tags=["congress"])
+
+REFRESH_COOLDOWN_SECONDS = 10
 
 SEARCH_FIELDS = ["ticker", "member_name", "asset_description"]
 SORT_FIELDS = {
@@ -64,7 +67,7 @@ def export_congress_trades(
     ticker: str | None = None,
 ):
     exact = _exact_filter(actor, ticker)
-    rows = query_all_rows(
+    rows, total = query_all_rows(
         "congress_trades", SEARCH_FIELDS, q, "transaction_date", SORT_FIELDS,
         sort, order, date_from, date_to, exact,
     )
@@ -72,11 +75,11 @@ def export_congress_trades(
     return StreamingResponse(
         iter([csv_text]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=congress_trades.csv"},
+        headers=export_headers("congress_trades.csv", len(rows), total),
     )
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(cooldown("congress_refresh", REFRESH_COOLDOWN_SECONDS))])
 def refresh(year: int, limit: int | None = None, since_date: str | None = None):
     inserted, errors = refresh_all_congress_trades(year=year, limit=limit, since_date=since_date)
     record_scrape_run("congress", inserted, errors)

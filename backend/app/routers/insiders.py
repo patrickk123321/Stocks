@@ -1,10 +1,13 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app.csv_export import rows_to_csv
+from app.csv_export import export_headers, rows_to_csv
 from app.db import query_all_rows, query_rows, record_scrape_run
+from app.rate_limit import cooldown
 from app.sources.edgar_common import filing_index_url
 from app.sources.edgar_form4 import refresh_form4
+
+REFRESH_COOLDOWN_SECONDS = 10
 
 router = APIRouter(prefix="/api/insiders", tags=["insiders"])
 
@@ -69,7 +72,7 @@ def export_insider_trades(
     ticker: str | None = None,
 ):
     exact = _exact_filter(actor, ticker)
-    rows = query_all_rows(
+    rows, total = query_all_rows(
         "insider_transactions", SEARCH_FIELDS, q, "transaction_date", SORT_FIELDS,
         sort, order, date_from, date_to, exact,
     )
@@ -77,11 +80,11 @@ def export_insider_trades(
     return StreamingResponse(
         iter([csv_text]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=insider_trades.csv"},
+        headers=export_headers("insider_trades.csv", len(rows), total),
     )
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(cooldown("insiders_refresh", REFRESH_COOLDOWN_SECONDS))])
 def refresh(count: int = 100):
     inserted, errors = refresh_form4(count=count)
     record_scrape_run("insiders", inserted, errors)

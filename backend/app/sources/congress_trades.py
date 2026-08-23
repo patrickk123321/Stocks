@@ -88,8 +88,13 @@ BOILERPLATE_LABEL_PLAIN_RE = re.compile(
 # "Stock (TICKER)", not just the bare "(TICKER)" LEADING_TICKER_RE handles.
 LEADING_TICKER_WRAPPED_RE = re.compile(r"^(?:Common\s+)?Stock\s*\([A-Z]{1,6}\)\s*", re.IGNORECASE)
 # Asset-type bracket tags (e.g. "[ST]", "[OP]") that survive the label strip above
-# with nothing left to attach to are leftover noise, not useful on their own.
-STRAY_BRACKET_TAG_RE = re.compile(r"\[[A-Z]{2,4}\]\s*")
+# with nothing left to attach to are leftover noise, not useful on their own — but
+# House PTR filings also have a real "Asset Type" column using this exact [XX]
+# format as legitimate data. Anchored to the start only: every real occurrence of
+# the leftover-noise case has the tag at the very front once the other leading
+# strips above have run, so anchoring avoids ever destroying a genuine mid-string
+# asset-type tag while still catching every case actually observed.
+STRAY_BRACKET_TAG_RE = re.compile(r"^(?:\[[A-Z]{2,4}\]\s*)+")
 # A superscript footnote-reference digit sometimes extracts as a literal "?" — e.g. a
 # real reference number collapses to "200?". Not recoverable, so drop it as noise.
 LEAKED_FOOTNOTE_REF_RE = re.compile(r"^\d+\?\s*")

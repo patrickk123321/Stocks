@@ -1,18 +1,24 @@
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel, Field, field_validator
 
 from app.db import (
     get_latest_portfolio_snapshot,
     get_risk_profile,
+    list_portfolio_snapshots,
     save_portfolio_snapshot,
     save_risk_profile,
 )
 from app.portfolio_engine import compute_recommendations, derive_target_allocation
+from app.rate_limit import cooldown
 from app.sources.portfolio_vision import VisionNotConfiguredError, extract_holdings_from_image
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 ACCEPTED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}
+
+# Longer than the refresh endpoints' cooldown — this one burns real Anthropic API
+# spend per call, so an accidental loop here is more costly than a re-scrape.
+UPLOAD_COOLDOWN_SECONDS = 15
 
 
 class HoldingInput(BaseModel):
@@ -35,7 +41,7 @@ class RiskProfileInput(BaseModel):
     primary_goal: str | None = None
 
 
-@router.post("/upload")
+@router.post("/upload", dependencies=[Depends(cooldown("portfolio_upload", UPLOAD_COOLDOWN_SECONDS))])
 async def upload_screenshot(file: UploadFile):
     """Parses a portfolio screenshot into holdings for the user to review —
     does NOT save anything. Call POST /snapshots with the (possibly corrected)
@@ -64,6 +70,14 @@ def latest_snapshot():
     if not snapshot:
         raise HTTPException(status_code=404, detail="No portfolio snapshot saved yet.")
     return snapshot
+
+
+@router.get("/snapshots")
+def snapshot_history():
+    """Every upload after the first used to be invisible — this makes that
+    history visible (most recent first). Read-only summaries; recommendations
+    are still always computed from the single latest snapshot."""
+    return {"snapshots": list_portfolio_snapshots()}
 
 
 @router.get("/risk-profile")

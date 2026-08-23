@@ -14,6 +14,13 @@ export interface PortfolioSnapshot {
   holdings: Holding[];
 }
 
+export interface SnapshotSummary {
+  id: number;
+  uploaded_at: string;
+  holding_count: number;
+  total_value: number;
+}
+
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
 
 export interface RiskProfile {
@@ -68,7 +75,7 @@ export interface Recommendations {
   sector_flags: SectorFlag[];
 }
 
-class ApiDetailError extends Error {}
+export class ApiDetailError extends Error {}
 
 async function readDetail(res: Response, fallback: string): Promise<string> {
   try {
@@ -115,6 +122,15 @@ export async function getLatestSnapshot(): Promise<PortfolioSnapshot | null> {
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Failed to load portfolio snapshot: ${res.status}`);
   return res.json();
+}
+
+// Every upload after the first used to be invisible — only the latest snapshot
+// was ever readable. This surfaces the (read-only) history.
+export async function listSnapshots(): Promise<SnapshotSummary[]> {
+  const res = await apiFetch("/api/portfolio/snapshots");
+  if (!res.ok) throw new Error(`Failed to load snapshot history: ${res.status}`);
+  const data = await res.json();
+  return data.snapshots;
 }
 
 export async function getRiskProfile(): Promise<RiskProfile | null> {

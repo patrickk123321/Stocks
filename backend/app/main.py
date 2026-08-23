@@ -17,6 +17,9 @@ app.add_middleware(
     allow_origins=["http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
+    # Browsers only expose the CORS-safelisted response headers to JS by default —
+    # these carry the CSV export truncation signal, so they need to opt in explicitly.
+    expose_headers=["X-Total-Matched", "X-Export-Row-Count", "X-Export-Truncated"],
 )
 
 app.include_router(insiders.router)

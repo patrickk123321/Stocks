@@ -2,7 +2,7 @@
 
 import { Plus, Trash, UploadSimple, WarningCircle } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
-import { Holding, saveSnapshot, uploadScreenshot, VisionNotConfiguredError } from "../lib/portfolioApi";
+import { ApiDetailError, Holding, saveSnapshot, uploadScreenshot, VisionNotConfiguredError } from "../lib/portfolioApi";
 
 const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50";
 
@@ -33,6 +33,8 @@ export default function PortfolioUpload({ onSaved }: PortfolioUploadProps) {
     } catch (err) {
       if (err instanceof VisionNotConfiguredError) {
         setVisionUnavailable(err.message);
+      } else if (err instanceof ApiDetailError) {
+        setError(err.message);
       } else {
         setError("Couldn't read that screenshot — try again, or enter holdings manually below.");
       }
@@ -158,7 +160,11 @@ export default function PortfolioUpload({ onSaved }: PortfolioUploadProps) {
         </button>
 
         {missingTickerCount > 0 && (
-          <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning"
+          >
             <WarningCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
             <span>
               {missingTickerCount === 1 ? "1 row is" : `${missingTickerCount} rows are`} missing a ticker and won&apos;t be
@@ -167,7 +173,11 @@ export default function PortfolioUpload({ onSaved }: PortfolioUploadProps) {
           </div>
         )}
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
 
         <div className="flex gap-3">
           <button
@@ -215,13 +225,20 @@ export default function PortfolioUpload({ onSaved }: PortfolioUploadProps) {
       </button>
 
       {visionUnavailable && (
-        <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning"
+        >
           <WarningCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>{visionUnavailable}</span>
         </div>
       )}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
           <WarningCircle size={16} aria-hidden="true" />
           <span>{error}</span>
         </div>

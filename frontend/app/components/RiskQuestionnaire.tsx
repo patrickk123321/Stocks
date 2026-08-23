@@ -56,6 +56,7 @@ export default function RiskQuestionnaire({ onSaved }: RiskQuestionnaireProps) {
             <button
               key={opt.value}
               onClick={() => setRiskTolerance(opt.value)}
+              aria-pressed={riskTolerance === opt.value}
               className={`flex flex-col gap-1 rounded-lg border px-4 py-3 text-left transition-colors ${FOCUS_RING} ${
                 riskTolerance === opt.value ? "border-accent bg-accent/10" : "border-border hover:bg-muted"
               }`}

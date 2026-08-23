@@ -12,3 +12,16 @@ def rows_to_csv(rows: list[dict], columns: list[str]) -> str:
     for row in rows:
         writer.writerow(row)
     return buffer.getvalue()
+
+
+def export_headers(filename: str, row_count: int, total_matched: int) -> dict[str, str]:
+    """Response headers for a CSV export — beyond the download disposition,
+    carries the truncation signal (query_all_rows caps at EXPORT_ROW_CAP) so a
+    capped file doesn't silently look like the complete result set. Exposed to
+    frontend JS via CORS's expose_headers in main.py."""
+    return {
+        "Content-Disposition": f"attachment; filename={filename}",
+        "X-Total-Matched": str(total_matched),
+        "X-Export-Row-Count": str(row_count),
+        "X-Export-Truncated": "true" if row_count < total_matched else "false",
+    }

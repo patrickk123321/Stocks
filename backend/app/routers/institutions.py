@@ -1,12 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app.csv_export import rows_to_csv
+from app.csv_export import export_headers, rows_to_csv
 from app.db import get_position_changes, query_all_rows, query_rows, record_scrape_run
+from app.rate_limit import cooldown
 from app.sources.edgar_13f import refresh_13f
 from app.sources.edgar_common import filing_index_url
 
 router = APIRouter(prefix="/api/institutions", tags=["institutions"])
+
+REFRESH_COOLDOWN_SECONDS = 10
 
 # 13F filings report CUSIP, not ticker symbols, so search matches company/filer name and CUSIP.
 SEARCH_FIELDS = ["issuer_name", "filer_name", "cusip"]
@@ -58,7 +61,7 @@ def export_institutional_holdings(
     actor: str | None = None,
 ):
     exact = {"filer_name": actor} if actor else None
-    rows = query_all_rows(
+    rows, total = query_all_rows(
         "institutional_holdings", SEARCH_FIELDS, q, "filed_at", SORT_FIELDS,
         sort, order, date_from, date_to, exact,
     )
@@ -66,7 +69,7 @@ def export_institutional_holdings(
     return StreamingResponse(
         iter([csv_text]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=institutional_holdings.csv"},
+        headers=export_headers("institutional_holdings.csv", len(rows), total),
     )
 
 
@@ -78,7 +81,7 @@ def list_position_changes(change_type: str | None = None, limit: int = 50, offse
     return {"rows": _attach_source_url(rows), "total": total}
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(cooldown("institutions_refresh", REFRESH_COOLDOWN_SECONDS))])
 def refresh(count: int = 50):
     inserted, errors = refresh_13f(count=count)
     record_scrape_run("institutions", inserted, errors)

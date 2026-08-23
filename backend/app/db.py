@@ -229,18 +229,23 @@ def query_all_rows(
     date_from: str | None = None,
     date_to: str | None = None,
     exact: dict[str, str] | None = None,
-) -> list[dict]:
+) -> tuple[list[dict], int]:
     """Same filters as query_rows but returns every matching row (up to
     EXPORT_ROW_CAP, as a sane ceiling rather than true pagination) — used for
-    CSV export, where a partial page would silently misrepresent the data."""
+    CSV export, where a partial page would silently misrepresent the data.
+    Also returns the true total matching the filter (which may exceed
+    EXPORT_ROW_CAP) so the caller can tell the user when the export was
+    truncated, rather than a capped file silently looking complete."""
     sort_field = sort if sort in allowed_sort_fields else date_field
     order_sql = "ASC" if order == "asc" else "DESC"
     where, params = _build_where(search_fields, q, date_field, date_from, date_to, exact)
 
+    count_sql = f"SELECT COUNT(*) FROM {table} {where}"
     sql = f"SELECT * FROM {table} {where} ORDER BY {sort_field} {order_sql} LIMIT :limit"
     with get_conn() as conn:
+        total = conn.execute(count_sql, params).fetchone()[0]
         rows = conn.execute(sql, {**params, "limit": EXPORT_ROW_CAP}).fetchall()
-        return [dict(row) for row in rows]
+        return [dict(row) for row in rows], total
 
 
 def table_is_empty(table: str) -> bool:
@@ -351,6 +356,28 @@ def get_latest_portfolio_snapshot() -> dict | None:
         if not row:
             return None
         return {"id": row["id"], "uploaded_at": row["uploaded_at"], "holdings": json.loads(row["holdings_json"])}
+
+
+def list_portfolio_snapshots(limit: int = 20) -> list[dict]:
+    """Every upload after the first used to be invisible — only the latest
+    snapshot was ever readable, even though the data for a full history already
+    existed. Lightweight summaries only (id, upload time, holding count, total
+    value), most recent first — the caller doesn't need full holdings here."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, uploaded_at, holdings_json FROM portfolio_snapshots ORDER BY uploaded_at DESC LIMIT :limit",
+            {"limit": limit},
+        ).fetchall()
+        summaries = []
+        for row in rows:
+            holdings = json.loads(row["holdings_json"])
+            summaries.append({
+                "id": row["id"],
+                "uploaded_at": row["uploaded_at"],
+                "holding_count": len(holdings),
+                "total_value": sum(h.get("value") or 0 for h in holdings),
+            })
+        return summaries
 
 
 def get_risk_profile() -> dict | None:
