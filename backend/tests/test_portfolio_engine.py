@@ -9,6 +9,36 @@ def test_derive_target_allocation_unknown_falls_back_to_moderate():
     assert derive_target_allocation("not-a-real-profile") == derive_target_allocation("moderate")
 
 
+def test_derive_target_allocation_short_horizon_tilts_conservative():
+    # "Under 5 years" nudges 10 points from stock into bond.
+    baseline = derive_target_allocation("moderate")
+    tilted = derive_target_allocation("moderate", "Under 5 years")
+    assert tilted["stock"] == baseline["stock"] - 10.0
+    assert tilted["bond"] == baseline["bond"] + 10.0
+    assert tilted["cash"] == baseline["cash"]
+    assert tilted["stock"] + tilted["bond"] + tilted["cash"] == 100.0
+
+
+def test_derive_target_allocation_long_horizon_tilts_aggressive():
+    baseline = derive_target_allocation("moderate")
+    tilted = derive_target_allocation("moderate", "15+ years")
+    assert tilted["stock"] == baseline["stock"] + 10.0
+    assert tilted["bond"] == baseline["bond"] - 10.0
+    assert tilted["stock"] + tilted["bond"] + tilted["cash"] == 100.0
+
+
+def test_derive_target_allocation_mid_horizon_is_neutral():
+    assert derive_target_allocation("moderate", "5–15 years") == derive_target_allocation("moderate")
+
+
+def test_derive_target_allocation_horizon_tilt_clamps_bond_at_zero():
+    # aggressive is already bond:10 — a long horizon tilt shouldn't push it negative.
+    tilted = derive_target_allocation("aggressive", "15+ years")
+    assert tilted["bond"] == 0.0
+    assert tilted["stock"] == 100.0
+    assert tilted["cash"] == 0.0
+
+
 def test_compute_allocation_splits_by_asset_class_and_sector():
     holdings = [
         {"ticker": "AAPL", "shares": 10, "value": 1000},  # stock, Technology
@@ -65,6 +95,31 @@ def test_compute_recommendations_no_gap_within_threshold():
     ]
     result = compute_recommendations(holdings, "moderate")
     assert result["gaps"] == []
+
+
+def test_compute_recommendations_tilts_suggested_funds_by_primary_goal():
+    holdings = [{"ticker": "CASH", "shares": 1, "value": 10000}]
+    growth_result = compute_recommendations(holdings, "aggressive", primary_goal="Growth")
+    income_result = compute_recommendations(holdings, "aggressive", primary_goal="Income")
+    growth_funds = next(g for g in growth_result["gaps"] if g["asset_class"] == "stock")["suggested_funds"]
+    income_funds = next(g for g in income_result["gaps"] if g["asset_class"] == "stock")["suggested_funds"]
+    assert growth_funds != income_funds
+    assert any("SCHD" in fund for fund in income_funds)
+
+
+def test_compute_recommendations_applies_time_horizon_to_target():
+    holdings = [{"ticker": "CASH", "shares": 1, "value": 10000}]
+    result = compute_recommendations(holdings, "moderate", time_horizon="15+ years")
+    assert result["target"] == derive_target_allocation("moderate", "15+ years")
+
+
+def test_compute_recommendations_cash_gap_message_is_grammatically_correct():
+    # naive "{asset_class}s" pluralization used to render "overweight cashs"
+    holdings = [{"ticker": "CASH", "shares": 1, "value": 10000}]
+    result = compute_recommendations(holdings, "aggressive")
+    cash_gap = next(g for g in result["gaps"] if g["asset_class"] == "cash")
+    assert "cashs" not in cash_gap["message"]
+    assert "cash" in cash_gap["message"]
 
 
 def test_compute_recommendations_flags_sector_concentration():

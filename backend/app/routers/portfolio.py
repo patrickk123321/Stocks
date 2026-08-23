@@ -73,7 +73,7 @@ def read_risk_profile():
 
 @router.post("/risk-profile")
 def write_risk_profile(payload: RiskProfileInput):
-    target = derive_target_allocation(payload.risk_tolerance)
+    target = derive_target_allocation(payload.risk_tolerance, payload.time_horizon)
     save_risk_profile(
         time_horizon=payload.time_horizon,
         risk_tolerance=payload.risk_tolerance,
@@ -93,4 +93,9 @@ def recommendations():
         raise HTTPException(status_code=404, detail="Upload a portfolio screenshot first.")
     if not profile:
         raise HTTPException(status_code=404, detail="Complete the risk questionnaire first.")
-    return compute_recommendations(snapshot["holdings"], profile["risk_tolerance"])
+    return compute_recommendations(
+        snapshot["holdings"],
+        profile["risk_tolerance"],
+        profile.get("time_horizon"),
+        profile.get("primary_goal"),
+    )
