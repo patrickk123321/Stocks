@@ -98,8 +98,14 @@ export async function saveBotConfig(input: BotConfigInput): Promise<BotConfig> {
   return normalizeBotConfig(await res.json());
 }
 
+// Unlike the other GET endpoints here, this one makes 3 sequential real calls
+// to Alpaca's API rather than a local SQLite query — a cold outbound
+// connection (e.g. right after a backend restart) can take several seconds,
+// so the default 15s list-endpoint timeout is too tight for it.
+const ACCOUNT_TIMEOUT_MS = 30_000;
+
 export async function getBotAccount(): Promise<BotAccountInfo> {
-  const res = await apiFetch("/api/bot/account");
+  const res = await apiFetch("/api/bot/account", {}, ACCOUNT_TIMEOUT_MS);
   if (res.status === 503) {
     throw new AlpacaNotConfiguredError(await readDetail(res, "Auto-trading isn't configured yet."));
   }

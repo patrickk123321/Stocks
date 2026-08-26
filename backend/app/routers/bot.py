@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -38,11 +39,16 @@ def write_config(payload: BotConfigInput):
 
 
 @router.get("/account")
-def read_account():
+async def read_account():
+    # Three independent, blocking calls to Alpaca's real API (not a local DB
+    # query) — run concurrently in worker threads rather than sequentially,
+    # since each one can take a couple of seconds on its own.
     try:
-        account = alpaca_client.get_account()
-        positions = alpaca_client.get_positions()
-        market_open = alpaca_client.is_market_open()
+        account, positions, market_open = await asyncio.gather(
+            asyncio.to_thread(alpaca_client.get_account),
+            asyncio.to_thread(alpaca_client.get_positions),
+            asyncio.to_thread(alpaca_client.is_market_open),
+        )
     except alpaca_client.AlpacaNotConfiguredError as e:
         raise HTTPException(status_code=503, detail=str(e))
     return {"account": account, "positions": positions, "market_open": market_open}

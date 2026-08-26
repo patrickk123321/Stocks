@@ -150,7 +150,15 @@ def run_bot_once() -> tuple[int, int]:
     except alpaca_client.AlpacaNotConfiguredError:
         return 0, 0  # not configured — same "nothing to do" treatment, not a failure
 
-    decisions = decide_trades(positions, account["buying_power"], risk_profile, bot_config, already_traded_today)
+    # get_all_positions() only returns invested positions — a brand-new (or
+    # partially-cash) paper account's uninvested cash isn't a "position" at
+    # all, so without this compute_allocation's total_value would exclude it
+    # entirely. On an all-cash account that makes total_value 0, which makes
+    # every gap's dollar-sizing round to $0 and silently skip — the single
+    # most common starting state for this bot would otherwise never trade.
+    holdings = positions + [{"ticker": "CASH", "shares": None, "value": account["cash"]}]
+
+    decisions = decide_trades(holdings, account["buying_power"], risk_profile, bot_config, already_traded_today)
 
     inserted = 0
     errors = 0

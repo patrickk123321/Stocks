@@ -60,7 +60,7 @@ def test_run_bot_once_places_trades_and_logs_them(temp_db):
     _enable_bot()
     _set_risk_profile()
     with patch("app.alpaca_client.get_account", return_value={"cash": 10000.0, "buying_power": 10000.0, "equity": 10000.0, "portfolio_value": 10000.0}), \
-         patch("app.alpaca_client.get_positions", return_value=[{"ticker": "CASH", "shares": 1, "value": 10000.0}]), \
+         patch("app.alpaca_client.get_positions", return_value=[]), \
          patch("app.alpaca_client.submit_market_buy", return_value={"id": "order-1", "status": "accepted"}), \
          patch("app.alpaca_client.get_recent_orders", return_value=[]):
         inserted, errors = trading_engine.run_bot_once()
@@ -71,6 +71,26 @@ def test_run_bot_once_places_trades_and_logs_them(temp_db):
     assert len(trades) == inserted
     assert all(t["status"] == "submitted" for t in trades)
     assert all(t["alpaca_order_id"] == "order-1" for t in trades)
+
+
+def test_run_bot_once_trades_from_uninvested_cash_on_a_fresh_account(temp_db):
+    # Regression test: get_all_positions() never includes cash as a
+    # "position" (confirmed against Alpaca's real API — a fresh paper account
+    # returns positions=[] even with $100k sitting in it). Without folding
+    # account["cash"] into the holdings compute_recommendations sees,
+    # total_value comes out to $0 and every gap silently rounds to a $0
+    # trade — the single most common starting state (brand-new account, all
+    # cash, zero positions) would otherwise never place a trade at all.
+    _enable_bot()
+    _set_risk_profile()
+    with patch("app.alpaca_client.get_account", return_value={"cash": 100000.0, "buying_power": 400000.0, "equity": 100000.0, "portfolio_value": 100000.0}), \
+         patch("app.alpaca_client.get_positions", return_value=[]), \
+         patch("app.alpaca_client.submit_market_buy", return_value={"id": "order-1", "status": "accepted"}), \
+         patch("app.alpaca_client.get_recent_orders", return_value=[]):
+        inserted, errors = trading_engine.run_bot_once()
+
+    assert inserted > 0
+    assert errors == 0
 
 
 def test_run_bot_once_one_failed_order_does_not_abort_the_rest(temp_db):
@@ -86,7 +106,7 @@ def test_run_bot_once_one_failed_order_does_not_abort_the_rest(temp_db):
         return {"id": f"order-{call_count['n']}", "status": "accepted"}
 
     with patch("app.alpaca_client.get_account", return_value={"cash": 10000.0, "buying_power": 10000.0, "equity": 10000.0, "portfolio_value": 10000.0}), \
-         patch("app.alpaca_client.get_positions", return_value=[{"ticker": "CASH", "shares": 1, "value": 10000.0}]), \
+         patch("app.alpaca_client.get_positions", return_value=[]), \
          patch("app.alpaca_client.submit_market_buy", side_effect=flaky_submit), \
          patch("app.alpaca_client.get_recent_orders", return_value=[]):
         inserted, errors = trading_engine.run_bot_once()
@@ -103,7 +123,7 @@ def test_run_bot_once_second_call_same_day_is_a_noop(temp_db):
     _enable_bot()
     _set_risk_profile()
     with patch("app.alpaca_client.get_account", return_value={"cash": 10000.0, "buying_power": 10000.0, "equity": 10000.0, "portfolio_value": 10000.0}), \
-         patch("app.alpaca_client.get_positions", return_value=[{"ticker": "CASH", "shares": 1, "value": 10000.0}]), \
+         patch("app.alpaca_client.get_positions", return_value=[]), \
          patch("app.alpaca_client.submit_market_buy", return_value={"id": "order-1", "status": "accepted"}), \
          patch("app.alpaca_client.get_recent_orders", return_value=[]):
         first_inserted, _ = trading_engine.run_bot_once()
