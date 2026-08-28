@@ -9,7 +9,6 @@ from app.db import record_scrape_run, table_is_empty
 from app.sources.congress_trades import refresh_all_congress_trades
 from app.sources.edgar_13f import refresh_13f
 from app.sources.edgar_form4 import refresh_form4
-from app.trading_engine import run_bot_once
 
 logger = logging.getLogger("stocks.scheduler")
 
@@ -45,10 +44,7 @@ def _run_refresh(name: str, fn, **kwargs) -> None:
 
 def backfill_if_empty() -> None:
     """Runs once on startup so the dashboard has data immediately, instead of
-    waiting for the next scheduled run, on a fresh/empty database. The bot is
-    deliberately NOT included here, even though its tables start empty too —
-    it defaults to disabled (bot_config.enabled=0) and must never place a
-    trade before the user has reviewed the dashboard and turned it on."""
+    waiting for the next scheduled run, on a fresh/empty database."""
     if table_is_empty("insider_transactions"):
         _run_refresh("insiders", refresh_form4, count=100)
     if table_is_empty("institutional_holdings"):
@@ -57,34 +53,43 @@ def backfill_if_empty() -> None:
         _run_refresh("congress", refresh_all_congress_trades, year=date.today().year)
 
 
+def run_insider_refresh() -> None:
+    """Insider (Form 4) trades get their own twice-daily job (9:00am and
+    4:30pm) — filings land throughout the trading day, so a single once-daily
+    check misses same-day activity for longer than necessary. Institutions
+    (13F, quarterly data) and congress stay on the once-daily job below, where
+    twice-daily makes no practical difference."""
+    _run_refresh("insiders", refresh_form4, count=200)
+
+
 def run_daily_refresh() -> None:
     since = (date.today() - timedelta(days=DAILY_LOOKBACK_DAYS)).isoformat()
-    _run_refresh("insiders", refresh_form4, count=200)
     _run_refresh("institutions", refresh_13f, count=100)
     _run_refresh("congress", refresh_all_congress_trades, year=date.today().year, since_date=since)
 
 
-def run_bot_check() -> None:
-    _run_refresh("bot", run_bot_once)
-
-
 def start_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        run_insider_refresh,
+        CronTrigger(hour=9, minute=0),
+        id="insider_refresh_am",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        run_insider_refresh,
+        # After the US market's 4:00pm close, to catch same-day filings
+        # without waiting until the next morning.
+        CronTrigger(hour=16, minute=30),
+        id="insider_refresh_pm",
+        replace_existing=True,
+    )
     scheduler.add_job(
         run_daily_refresh,
         CronTrigger(hour=9, minute=0),
         id="daily_refresh",
         replace_existing=True,
     )
-    scheduler.add_job(
-        run_bot_check,
-        # 30 minutes after the daily refresh, so the day's Product 2 inputs
-        # (risk profile, latest snapshot) are settled before the bot decides
-        # anything. run_bot_once() itself is a no-op unless bot_config.enabled.
-        CronTrigger(hour=9, minute=30),
-        id="bot_check",
-        replace_existing=True,
-    )
     scheduler.start()
-    logger.info("scheduler started: daily refresh at 09:00, bot check at 09:30")
+    logger.info("scheduler started: insider refresh at 09:00 and 16:30, institutions/congress refresh at 09:00")
     return scheduler

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import get_last_scrape_run, init_db
-from app.routers import bot, congress, institutions, insiders, portfolio
+from app.routers import congress, institutions, insiders
 from app.scheduler import backfill_if_empty, start_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -25,8 +25,6 @@ app.add_middleware(
 app.include_router(insiders.router)
 app.include_router(institutions.router)
 app.include_router(congress.router)
-app.include_router(portfolio.router)
-app.include_router(bot.router)
 
 
 @app.on_event("startup")
@@ -54,5 +52,5 @@ def status():
     (previously visible only in stdout logs) is surfaced to the frontend."""
     return {
         category: get_last_scrape_run(category)
-        for category in ("insiders", "institutions", "congress", "bot")
+        for category in ("insiders", "institutions", "congress")
     }

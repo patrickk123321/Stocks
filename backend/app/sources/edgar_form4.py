@@ -3,6 +3,14 @@
 Source: SEC EDGAR 'latest filings' feed + individual Form 4 XML documents.
 Schema verified against live filings, e.g.:
 https://www.sec.gov/Archives/edgar/data/1663090/000122520826007237/doc4.xml
+
+US-only, deliberately: Canada's SEDI (System for Electronic Disclosure by
+Insiders) has no bulk or "what's new" endpoint, only per-issuer/per-insider
+search, so it can't answer the question this module needs to ask. Third-party
+aggregators that do (canadianinsider.com, tsxinsider.com, insiderscreener.com)
+either prohibit this kind of reuse in their terms, block automated access, or
+charge real money with no free tier (cheapest found: insiderscreener.com at
+CA$69/mo). Revisit if a viable free/cheap source turns up.
 """
 
 import logging

@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     template: "%s · Stocks",
     default: "Stocks",
   },
-  description: "Personal investing platform: trade tracking, portfolio recommendations, and paper trading.",
+  description: "Personal investing platform: corporate insider, institutional, and congressional trade tracking.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

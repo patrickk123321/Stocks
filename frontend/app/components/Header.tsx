@@ -1,13 +1,11 @@
 "use client";
 
-import { ChartLineUp, Robot, Wallet } from "@phosphor-icons/react";
+import { ChartLineUp } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
   { key: "trade-tracker", href: "/trade-tracker", label: "Trade Tracker", icon: ChartLineUp },
-  { key: "recommendations", href: "/recommendations", label: "Recommendations", icon: Wallet },
-  { key: "auto-trader", href: "/auto-trader", label: "Auto-Trading Bot", icon: Robot },
 ] as const;
 
 export default function Header() {

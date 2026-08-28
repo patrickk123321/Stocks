@@ -1,12 +1,8 @@
 # Stocks
 
-A personal investing platform, built in three parts:
+A personal investing platform: track corporate insider trades (SEC Form 4), institutional 13F filings, and congressional trades, shown as three searchable, filterable categories with a dashboard of the most recent activity.
 
-1. **Trade tracker** — corporate insider trades (SEC Form 4), institutional 13F filings, and congressional trades, shown as three separate categories.
-2. **Portfolio recommendation bot** — recommends stocks/ETFs and allocation percentages based on your risk/diversification/sector preferences and your current holdings (via Alpaca connection or screenshot upload).
-3. **Auto-trading bot** — paper-trades via Alpaca based on the outputs of parts 1 and 2.
-
-Built one part at a time. All three parts are live.
+Insider trades refresh twice daily (9:00 AM and 4:30 PM); institutional and congressional data refresh once daily. US-only for now — Canadian insider-trading data (SEDI) has no bulk/discovery API, only per-issuer search, and the paid third-party alternatives found weren't worth it yet; revisit if a viable free/cheap source turns up.
 
 ## Stack
 - `frontend/` — Next.js (TypeScript)

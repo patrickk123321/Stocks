@@ -5,6 +5,3 @@ python-dotenv
 pdfplumber
 apscheduler
 pytest
-anthropic
-python-multipart
-alpaca-py
