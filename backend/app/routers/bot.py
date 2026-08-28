@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -17,9 +17,11 @@ RUN_COOLDOWN_SECONDS = 30
 
 class BotConfigInput(BaseModel):
     enabled: bool
-    max_trade_dollars: float = Field(gt=0)
     max_trades_per_day: int = Field(gt=0, le=20)
     cash_buffer_pct: float = Field(ge=0, le=100)
+    standard_trade_pct: float = Field(gt=0, le=100)
+    high_conviction_trade_pct: float = Field(gt=0, le=100)
+    position_cap_pct: float = Field(gt=0, le=100)
 
 
 @router.get("/config")
@@ -31,26 +33,35 @@ def read_config():
 def write_config(payload: BotConfigInput):
     db.save_bot_config(
         enabled=payload.enabled,
-        max_trade_dollars=payload.max_trade_dollars,
         max_trades_per_day=payload.max_trades_per_day,
         cash_buffer_pct=payload.cash_buffer_pct,
+        standard_trade_pct=payload.standard_trade_pct,
+        high_conviction_trade_pct=payload.high_conviction_trade_pct,
+        position_cap_pct=payload.position_cap_pct,
     )
     return db.get_bot_config()
 
 
 @router.get("/account")
 async def read_account():
+    # Check configuration once, up front — instant, and avoids spinning up 3
+    # parallel worker threads (below) only to have some of them keep running
+    # in the background after one raises. asyncio.gather doesn't cancel
+    # sibling tasks when one fails, and a thread running a real blocking
+    # network call can't be forcibly stopped anyway.
+    try:
+        alpaca_client.ensure_configured()
+    except alpaca_client.AlpacaNotConfiguredError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
     # Three independent, blocking calls to Alpaca's real API (not a local DB
     # query) — run concurrently in worker threads rather than sequentially,
     # since each one can take a couple of seconds on its own.
-    try:
-        account, positions, market_open = await asyncio.gather(
-            asyncio.to_thread(alpaca_client.get_account),
-            asyncio.to_thread(alpaca_client.get_positions),
-            asyncio.to_thread(alpaca_client.is_market_open),
-        )
-    except alpaca_client.AlpacaNotConfiguredError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    account, positions, market_open = await asyncio.gather(
+        asyncio.to_thread(alpaca_client.get_account),
+        asyncio.to_thread(alpaca_client.get_positions),
+        asyncio.to_thread(alpaca_client.is_market_open),
+    )
     return {"account": account, "positions": positions, "market_open": market_open}
 
 
@@ -58,6 +69,27 @@ async def read_account():
 def list_trades(limit: int = 50, offset: int = 0):
     rows, total = db.list_bot_trades(limit, offset)
     return {"rows": rows, "total": total}
+
+
+@router.get("/signals")
+def read_signals():
+    """Every candidate (allocation gap or Product 1 signal) observed on the
+    most recent day the bot checked, flagged persisted (confirmed — seen on
+    the prior logged run too, will be acted on) vs pending (seen for the first
+    time, needs to also show up on the next run before the bot trades on it).
+    Matches this app's existing "always show why" transparency pattern."""
+    latest_date = db.get_prior_observation_run_date(
+        (date.today() + timedelta(days=1)).isoformat()
+    )
+    if not latest_date:
+        return {"run_date": None, "candidates": []}
+
+    today_candidates = db.get_bot_candidates_for_date(latest_date)
+    prior_date = db.get_prior_observation_run_date(latest_date)
+    prior_keys = db.get_observed_candidate_keys(prior_date) if prior_date else set()
+    for c in today_candidates:
+        c["persisted"] = c["candidate_key"] in prior_keys
+    return {"run_date": latest_date, "candidates": today_candidates}
 
 
 @router.post("/run", dependencies=[Depends(cooldown("bot_run", RUN_COOLDOWN_SECONDS))])

@@ -12,9 +12,11 @@ interface BotSettingsFormProps {
 
 export default function BotSettingsForm({ config, onSaved }: BotSettingsFormProps) {
   const [enabled, setEnabled] = useState(config.enabled);
-  const [maxTradeDollars, setMaxTradeDollars] = useState(config.max_trade_dollars);
   const [maxTradesPerDay, setMaxTradesPerDay] = useState(config.max_trades_per_day);
   const [cashBufferPct, setCashBufferPct] = useState(config.cash_buffer_pct);
+  const [standardTradePct, setStandardTradePct] = useState(config.standard_trade_pct);
+  const [highConvictionTradePct, setHighConvictionTradePct] = useState(config.high_conviction_trade_pct);
+  const [positionCapPct, setPositionCapPct] = useState(config.position_cap_pct);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,9 +26,11 @@ export default function BotSettingsForm({ config, onSaved }: BotSettingsFormProp
     try {
       await saveBotConfig({
         enabled,
-        max_trade_dollars: maxTradeDollars,
         max_trades_per_day: maxTradesPerDay,
         cash_buffer_pct: cashBufferPct,
+        standard_trade_pct: standardTradePct,
+        high_conviction_trade_pct: highConvictionTradePct,
+        position_cap_pct: positionCapPct,
       });
       onSaved();
     } catch {
@@ -42,7 +46,8 @@ export default function BotSettingsForm({ config, onSaved }: BotSettingsFormProp
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-card-foreground">Bot settings</h2>
           <p className="text-sm text-muted-foreground">
-            The bot only buys toward underweight targets — it never sells. Off by default.
+            Buys underweight targets and strong insider/congress signals; sells to enforce the position cap, exit a
+            broken thesis, or trim an overweight allocation. Off by default.
           </p>
         </div>
         <button
@@ -64,13 +69,38 @@ export default function BotSettingsForm({ config, onSaved }: BotSettingsFormProp
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-card-foreground">Max $ per trade</span>
+          <span className="font-medium text-card-foreground">Standard trade size (%)</span>
           <input
             type="number"
             min="1"
+            max="100"
             step="1"
-            value={maxTradeDollars}
-            onChange={(e) => setMaxTradeDollars(Number(e.target.value))}
+            value={standardTradePct}
+            onChange={(e) => setStandardTradePct(Number(e.target.value))}
+            className={`rounded-lg border border-border bg-card px-3 py-2 font-mono text-sm text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-card-foreground">High-conviction trade size (%)</span>
+          <input
+            type="number"
+            min="1"
+            max="100"
+            step="1"
+            value={highConvictionTradePct}
+            onChange={(e) => setHighConvictionTradePct(Number(e.target.value))}
+            className={`rounded-lg border border-border bg-card px-3 py-2 font-mono text-sm text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-card-foreground">Position cap (%)</span>
+          <input
+            type="number"
+            min="1"
+            max="100"
+            step="1"
+            value={positionCapPct}
+            onChange={(e) => setPositionCapPct(Number(e.target.value))}
             className={`rounded-lg border border-border bg-card px-3 py-2 font-mono text-sm text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
           />
         </label>
@@ -100,7 +130,9 @@ export default function BotSettingsForm({ config, onSaved }: BotSettingsFormProp
         </label>
       </div>
       <p className="text-xs text-muted-foreground">
-        Never invests below this % of buying power — a floor the bot won&apos;t spend past.
+        Standard/high-conviction trade size is a % of buying power (high-conviction applies to a stock with 5+
+        distinct insiders/congress members buying). Position cap is the max % of the portfolio any one stock can
+        reach before the bot trims it. Cash buffer is never invested — a floor the bot won&apos;t spend past.
       </p>
 
       {error && (

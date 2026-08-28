@@ -49,7 +49,7 @@ export default function AutoTraderPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Auto-Trading Bot</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Paper-trades toward your target allocation via Alpaca — buy-only, guardrailed, off by default.
+            Paper-trades toward your target allocation and insider/congress signals via Alpaca — guardrailed, off by default.
           </p>
         </div>
 

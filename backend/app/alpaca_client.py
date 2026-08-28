@@ -35,11 +35,21 @@ class AlpacaOrderError(Exception):
     exception message so callers never need to import Alpaca's exception types."""
 
 
-def _client():
+def ensure_configured() -> None:
+    """Raises AlpacaNotConfiguredError if the keys aren't set. Exposed so a
+    caller firing off several parallel calls (e.g. the /account endpoint's
+    asyncio.gather) can check once up front, rather than only finding out
+    after some of those calls are already running in background threads —
+    a real config check here is instant, so there's no reason to let an
+    unconfigured request get as far as spinning up worker threads at all."""
     if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
         raise AlpacaNotConfiguredError(
             "ALPACA_API_KEY / ALPACA_SECRET_KEY are not set — add them to .env to enable the auto-trading bot."
         )
+
+
+def _client():
+    ensure_configured()
     from alpaca.trading.client import TradingClient
 
     return TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)  # paper hardcoded — not a parameter, ever
@@ -87,11 +97,21 @@ def get_recent_orders(limit: int = 20) -> list[dict]:
     ]
 
 
+def _submit_order(order_data) -> dict:
+    """Shared submit/error-wrap/response-mapping for the buy and sell
+    functions below. Raises AlpacaOrderError if Alpaca reaches back with a
+    rejection (e.g. insufficient buying power, symbol not tradable/fractionable)."""
+    try:
+        order = _client().submit_order(order_data=order_data)
+    except Exception as e:  # Alpaca's own SDK exception types aren't imported by callers
+        raise AlpacaOrderError(str(e)) from e
+    return {"id": str(order.id), "status": order.status.value if hasattr(order.status, "value") else str(order.status)}
+
+
 def submit_market_buy(ticker: str, notional: float) -> dict:
     """Submits a dollar-denominated (notional) market buy order — a better fit
     than a share-quantity order for closing a gap sized in dollars. Returns
-    {"id", "status"}. Raises AlpacaOrderError if Alpaca reaches back with a
-    rejection (e.g. insufficient buying power, symbol not fractionable)."""
+    {"id", "status"}."""
     from alpaca.trading.enums import OrderSide, TimeInForce
     from alpaca.trading.requests import MarketOrderRequest
 
@@ -101,8 +121,27 @@ def submit_market_buy(ticker: str, notional: float) -> dict:
         side=OrderSide.BUY,
         time_in_force=TimeInForce.DAY,
     )
-    try:
-        order = _client().submit_order(order_data=order_data)
-    except Exception as e:  # Alpaca's own SDK exception types aren't imported by callers
-        raise AlpacaOrderError(str(e)) from e
-    return {"id": str(order.id), "status": order.status.value if hasattr(order.status, "value") else str(order.status)}
+    return _submit_order(order_data)
+
+
+def submit_market_sell(ticker: str, notional: float | None = None, qty: float | None = None) -> dict:
+    """Submits a market sell order — exactly one of notional/qty must be given.
+    Use notional for a partial trim (20%-cap enforcement, overweight-gap
+    rebalancing); use qty for a full-position exit (a broken-thesis signal
+    sell) — selling by share count can't overshoot a position's live value if
+    the price moved between the decision and this call, the way a dollar
+    amount computed from a possibly-stale value could. Returns {"id", "status"}."""
+    from alpaca.trading.enums import OrderSide, TimeInForce
+    from alpaca.trading.requests import MarketOrderRequest
+
+    if (notional is None) == (qty is None):
+        raise ValueError("submit_market_sell requires exactly one of notional or qty")
+
+    order_data = MarketOrderRequest(
+        symbol=ticker,
+        notional=round(notional, 2) if notional is not None else None,
+        qty=qty,
+        side=OrderSide.SELL,
+        time_in_force=TimeInForce.DAY,
+    )
+    return _submit_order(order_data)

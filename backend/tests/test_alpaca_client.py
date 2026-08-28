@@ -69,6 +69,38 @@ def test_submit_market_buy_wraps_sdk_error_as_alpaca_order_error():
             alpaca_client.submit_market_buy("VTI", 100.0)
 
 
+def test_submit_market_sell_notional_path():
+    fake_order = MagicMock(id="order-456")
+    fake_order.status.value = "accepted"
+    with patch("alpaca.trading.client.TradingClient") as MockClient:
+        MockClient.return_value.submit_order.return_value = fake_order
+        result = alpaca_client.submit_market_sell("AAPL", notional=250.0)
+    assert result == {"id": "order-456", "status": "accepted"}
+
+
+def test_submit_market_sell_qty_path():
+    fake_order = MagicMock(id="order-789")
+    fake_order.status.value = "accepted"
+    with patch("alpaca.trading.client.TradingClient") as MockClient:
+        MockClient.return_value.submit_order.return_value = fake_order
+        result = alpaca_client.submit_market_sell("AAPL", qty=10)
+    assert result == {"id": "order-789", "status": "accepted"}
+
+
+def test_submit_market_sell_requires_exactly_one_of_notional_or_qty():
+    with pytest.raises(ValueError):
+        alpaca_client.submit_market_sell("AAPL")
+    with pytest.raises(ValueError):
+        alpaca_client.submit_market_sell("AAPL", notional=100.0, qty=5)
+
+
+def test_submit_market_sell_wraps_sdk_error_as_alpaca_order_error():
+    with patch("alpaca.trading.client.TradingClient") as MockClient:
+        MockClient.return_value.submit_order.side_effect = RuntimeError("position not found")
+        with pytest.raises(alpaca_client.AlpacaOrderError, match="position not found"):
+            alpaca_client.submit_market_sell("AAPL", qty=10)
+
+
 def test_get_recent_orders_maps_fields():
     fake_order = MagicMock(id="order-1", symbol="VTI", filled_avg_price="150.25")
     fake_order.status.value = "filled"

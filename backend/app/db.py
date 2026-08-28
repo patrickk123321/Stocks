@@ -97,19 +97,29 @@ CREATE TABLE IF NOT EXISTS risk_profile (
 
 -- Product 3 (Auto-Trading Bot). Single-row settings table, same pattern as
 -- risk_profile above — one bot, one set of guardrails, for this single-user app.
+-- max_trade_dollars is v1-only and no longer read/written by v2 code — a flat
+-- dollar cap was replaced by percentage-of-buying-power sizing. Left in the
+-- schema (SQLite can't drop columns) rather than repurposed, since reinterpreting
+-- a stored dollar value as a percentage would silently corrupt existing rows.
 CREATE TABLE IF NOT EXISTS bot_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     enabled INTEGER NOT NULL DEFAULT 0,
     max_trade_dollars REAL NOT NULL DEFAULT 100.0,
     max_trades_per_day INTEGER NOT NULL DEFAULT 3,
     cash_buffer_pct REAL NOT NULL DEFAULT 10.0,
+    standard_trade_pct REAL NOT NULL DEFAULT 10.0,
+    high_conviction_trade_pct REAL NOT NULL DEFAULT 20.0,
+    position_cap_pct REAL NOT NULL DEFAULT 20.0,
     updated_at TEXT
 );
 
--- One row per order the bot attempts. rationale ties it back to which
--- allocation gap it was closing, so the trade history reads as "why", not
--- just "what". status starts at submit time ("submitted"/"failed") and gets
--- refreshed by polling get_orders (no inbound webhook in this app).
+-- One row per order the bot attempts. rationale ties it back to which gap or
+-- signal justified it, so the trade history reads as "why", not just "what".
+-- status starts at submit time ("submitted"/"failed") and gets refreshed by
+-- polling get_orders (no inbound webhook in this app). trigger_type records
+-- which of the five decision tiers produced this trade (see trading_engine.py);
+-- signal_strength is the distinct insider+congress buyer/seller count behind a
+-- signal-driven trade, NULL for gap-driven ones.
 CREATE TABLE IF NOT EXISTS bot_trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_date TEXT NOT NULL,
@@ -123,7 +133,28 @@ CREATE TABLE IF NOT EXISTS bot_trades (
     error_message TEXT,
     placed_at TEXT NOT NULL,
     filled_at TEXT,
-    filled_avg_price REAL
+    filled_avg_price REAL,
+    trigger_type TEXT NOT NULL DEFAULT 'gap_underweight',
+    signal_strength INTEGER
+);
+
+-- Logs every allocation-gap or Product 1 signal candidate the bot observes on
+-- each daily check, whether or not it's ultimately acted on — this is what lets
+-- the bot require a candidate to persist across 2 consecutive runs before
+-- trading on it (see trading_engine.py), and backs the /api/bot/signals
+-- transparency endpoint.
+CREATE TABLE IF NOT EXISTS bot_signal_observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_date TEXT NOT NULL,
+    candidate_key TEXT NOT NULL,
+    candidate_type TEXT NOT NULL,
+    ticker TEXT,
+    asset_class TEXT,
+    signal_strength INTEGER,
+    diff_pct REAL,
+    detail_json TEXT,
+    observed_at TEXT NOT NULL,
+    UNIQUE(run_date, candidate_key)
 );
 
 CREATE INDEX IF NOT EXISTS idx_insider_ticker ON insider_transactions(issuer_ticker);
@@ -143,6 +174,9 @@ CREATE INDEX IF NOT EXISTS idx_scrape_runs_category_ran_at ON scrape_runs(catego
 
 CREATE INDEX IF NOT EXISTS idx_bot_trades_run_date ON bot_trades(run_date);
 CREATE INDEX IF NOT EXISTS idx_bot_trades_placed_at ON bot_trades(placed_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_bot_signal_obs_run_date ON bot_signal_observations(run_date);
+CREATE INDEX IF NOT EXISTS idx_bot_signal_obs_candidate_key ON bot_signal_observations(candidate_key, run_date);
 """
 
 
@@ -169,6 +203,11 @@ def init_db():
     with get_conn() as conn:
         conn.executescript(SCHEMA)
         _ensure_column(conn, "insider_transactions", "filer_cik", "TEXT")
+        _ensure_column(conn, "bot_config", "standard_trade_pct", "REAL NOT NULL DEFAULT 10.0")
+        _ensure_column(conn, "bot_config", "high_conviction_trade_pct", "REAL NOT NULL DEFAULT 20.0")
+        _ensure_column(conn, "bot_config", "position_cap_pct", "REAL NOT NULL DEFAULT 20.0")
+        _ensure_column(conn, "bot_trades", "trigger_type", "TEXT NOT NULL DEFAULT 'gap_underweight'")
+        _ensure_column(conn, "bot_trades", "signal_strength", "INTEGER")
     ensure_default_bot_config()
 
 
@@ -465,27 +504,33 @@ def get_bot_config() -> dict | None:
 
 def save_bot_config(
     enabled: bool,
-    max_trade_dollars: float,
     max_trades_per_day: int,
     cash_buffer_pct: float,
+    standard_trade_pct: float,
+    high_conviction_trade_pct: float,
+    position_cap_pct: float,
 ) -> None:
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO bot_config (id, enabled, max_trade_dollars, max_trades_per_day, cash_buffer_pct, updated_at)
-            VALUES (1, :enabled, :max_trade_dollars, :max_trades_per_day, :cash_buffer_pct, :updated_at)
+            INSERT INTO bot_config (id, enabled, max_trades_per_day, cash_buffer_pct, standard_trade_pct, high_conviction_trade_pct, position_cap_pct, updated_at)
+            VALUES (1, :enabled, :max_trades_per_day, :cash_buffer_pct, :standard_trade_pct, :high_conviction_trade_pct, :position_cap_pct, :updated_at)
             ON CONFLICT(id) DO UPDATE SET
                 enabled = excluded.enabled,
-                max_trade_dollars = excluded.max_trade_dollars,
                 max_trades_per_day = excluded.max_trades_per_day,
                 cash_buffer_pct = excluded.cash_buffer_pct,
+                standard_trade_pct = excluded.standard_trade_pct,
+                high_conviction_trade_pct = excluded.high_conviction_trade_pct,
+                position_cap_pct = excluded.position_cap_pct,
                 updated_at = excluded.updated_at
             """,
             {
                 "enabled": int(enabled),
-                "max_trade_dollars": max_trade_dollars,
                 "max_trades_per_day": max_trades_per_day,
                 "cash_buffer_pct": cash_buffer_pct,
+                "standard_trade_pct": standard_trade_pct,
+                "high_conviction_trade_pct": high_conviction_trade_pct,
+                "position_cap_pct": position_cap_pct,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -499,8 +544,10 @@ def ensure_default_bot_config() -> None:
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT OR IGNORE INTO bot_config (id, enabled, max_trade_dollars, max_trades_per_day, cash_buffer_pct, updated_at)
-            VALUES (1, 0, 100.0, 3, 10.0, :updated_at)
+            INSERT OR IGNORE INTO bot_config
+                (id, enabled, max_trade_dollars, max_trades_per_day, cash_buffer_pct,
+                 standard_trade_pct, high_conviction_trade_pct, position_cap_pct, updated_at)
+            VALUES (1, 0, 100.0, 3, 10.0, 10.0, 20.0, 20.0, :updated_at)
             """,
             {"updated_at": datetime.now(timezone.utc).isoformat()},
         )
@@ -510,13 +557,19 @@ def insert_bot_trade(row: dict) -> int:
     with get_conn() as conn:
         cursor = conn.execute(
             """
-            INSERT INTO bot_trades (run_date, ticker, side, notional, asset_class, rationale, status, alpaca_order_id, error_message, placed_at)
-            VALUES (:run_date, :ticker, :side, :notional, :asset_class, :rationale, :status, :alpaca_order_id, :error_message, :placed_at)
+            INSERT INTO bot_trades
+                (run_date, ticker, side, notional, asset_class, rationale, status,
+                 alpaca_order_id, error_message, placed_at, trigger_type, signal_strength)
+            VALUES
+                (:run_date, :ticker, :side, :notional, :asset_class, :rationale, :status,
+                 :alpaca_order_id, :error_message, :placed_at, :trigger_type, :signal_strength)
             """,
             {
                 "side": "buy",
                 "alpaca_order_id": None,
                 "error_message": None,
+                "trigger_type": "gap_underweight",
+                "signal_strength": None,
                 **row,
             },
         )
@@ -577,3 +630,75 @@ def get_submitted_bot_trades() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM bot_trades WHERE status = 'submitted'").fetchall()
         return [dict(row) for row in rows]
+
+
+def log_bot_candidates(run_date: str, candidates: list[dict]) -> None:
+    """Logs every allocation-gap or Product 1 signal candidate observed on a
+    day's bot check — INSERT OR IGNORE so re-logging the same candidate_key on
+    the same run_date (e.g. a retried run) is a harmless no-op, not an error.
+    See trading_engine.gather_candidates for the candidate dict shape."""
+    if not candidates:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    with get_conn() as conn:
+        conn.executemany(
+            """
+            INSERT OR IGNORE INTO bot_signal_observations
+                (run_date, candidate_key, candidate_type, ticker, asset_class,
+                 signal_strength, diff_pct, detail_json, observed_at)
+            VALUES
+                (:run_date, :candidate_key, :candidate_type, :ticker, :asset_class,
+                 :signal_strength, :diff_pct, :detail_json, :observed_at)
+            """,
+            [
+                {
+                    "run_date": run_date,
+                    "candidate_key": c["candidate_key"],
+                    "candidate_type": c["candidate_type"],
+                    "ticker": c.get("ticker"),
+                    "asset_class": c.get("asset_class"),
+                    "signal_strength": c.get("signal_strength"),
+                    "diff_pct": c.get("diff_pct"),
+                    "detail_json": json.dumps(c.get("detail", {})),
+                    "observed_at": now,
+                }
+                for c in candidates
+            ],
+        )
+
+
+def get_prior_observation_run_date(before_date: str) -> str | None:
+    """The most recent logged run_date strictly before `before_date` — not
+    literally "yesterday", so a day the bot was disabled/skipped doesn't
+    silently reset every candidate's persistence counter."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT MAX(run_date) AS d FROM bot_signal_observations WHERE run_date < :before_date",
+            {"before_date": before_date},
+        ).fetchone()
+        return row["d"] if row and row["d"] else None
+
+
+def get_observed_candidate_keys(run_date: str) -> set[str]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT candidate_key FROM bot_signal_observations WHERE run_date = :run_date",
+            {"run_date": run_date},
+        ).fetchall()
+        return {row["candidate_key"] for row in rows}
+
+
+def get_bot_candidates_for_date(run_date: str) -> list[dict]:
+    """Backs GET /api/bot/signals — every candidate observed on run_date, with
+    detail_json decoded back into a plain dict."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM bot_signal_observations WHERE run_date = :run_date ORDER BY id",
+            {"run_date": run_date},
+        ).fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["detail"] = json.loads(d.pop("detail_json") or "{}")
+            result.append(d)
+        return result

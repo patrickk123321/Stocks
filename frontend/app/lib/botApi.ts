@@ -3,17 +3,21 @@ import { API_BASE, apiFetch, BackendUnreachableError, throwForStatus } from "./a
 export interface BotConfig {
   id: number;
   enabled: boolean;
-  max_trade_dollars: number;
   max_trades_per_day: number;
   cash_buffer_pct: number;
+  standard_trade_pct: number;
+  high_conviction_trade_pct: number;
+  position_cap_pct: number;
   updated_at: string | null;
 }
 
 export interface BotConfigInput {
   enabled: boolean;
-  max_trade_dollars: number;
   max_trades_per_day: number;
   cash_buffer_pct: number;
+  standard_trade_pct: number;
+  high_conviction_trade_pct: number;
+  position_cap_pct: number;
 }
 
 export interface AlpacaAccount {
@@ -49,6 +53,8 @@ export interface BotTrade {
   placed_at: string;
   filled_at: string | null;
   filled_avg_price: number | null;
+  trigger_type: string;
+  signal_strength: number | null;
 }
 
 export interface BotRunResult {
@@ -56,6 +62,19 @@ export interface BotRunResult {
   inserted?: number;
   errors?: number;
   trades: BotTrade[];
+}
+
+export interface BotSignalCandidate {
+  run_date: string;
+  candidate_key: string;
+  candidate_type: "gap_underweight" | "gap_overweight" | "stock_buy" | "stock_sell";
+  ticker: string | null;
+  asset_class: string | null;
+  signal_strength: number | null;
+  diff_pct: number | null;
+  detail: { message?: string; suggested_funds?: string[]; insiders?: string[]; congress?: string[] };
+  observed_at: string;
+  persisted: boolean;
 }
 
 export class AlpacaNotConfiguredError extends Error {
@@ -116,6 +135,12 @@ export async function getBotAccount(): Promise<BotAccountInfo> {
 export async function getBotTrades(limit = 50, offset = 0): Promise<{ rows: BotTrade[]; total: number }> {
   const res = await apiFetch(`/api/bot/trades?limit=${limit}&offset=${offset}`);
   if (!res.ok) throw new Error(`Failed to load trade history: ${res.status}`);
+  return res.json();
+}
+
+export async function getBotSignals(): Promise<{ run_date: string | null; candidates: BotSignalCandidate[] }> {
+  const res = await apiFetch("/api/bot/signals");
+  if (!res.ok) throw new Error(`Failed to load pending signals: ${res.status}`);
   return res.json();
 }
 

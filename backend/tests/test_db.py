@@ -254,25 +254,36 @@ def test_bot_config_is_seeded_with_conservative_defaults_on_init(temp_db):
     config = db.get_bot_config()
     assert config is not None
     assert config["enabled"] == 0
-    assert config["max_trade_dollars"] == 100.0
     assert config["max_trades_per_day"] == 3
     assert config["cash_buffer_pct"] == 10.0
+    assert config["standard_trade_pct"] == 10.0
+    assert config["high_conviction_trade_pct"] == 20.0
+    assert config["position_cap_pct"] == 20.0
 
 
 def test_ensure_default_bot_config_does_not_clobber_a_customized_row(temp_db):
-    db.save_bot_config(enabled=True, max_trade_dollars=500.0, max_trades_per_day=1, cash_buffer_pct=25.0)
+    db.save_bot_config(
+        enabled=True, max_trades_per_day=1, cash_buffer_pct=25.0,
+        standard_trade_pct=15.0, high_conviction_trade_pct=25.0, position_cap_pct=30.0,
+    )
     db.ensure_default_bot_config()  # called again, e.g. by a second init_db()
     config = db.get_bot_config()
     assert config["enabled"] == 1
-    assert config["max_trade_dollars"] == 500.0
+    assert config["standard_trade_pct"] == 15.0
 
 
 def test_save_bot_config_is_upsert_not_a_new_row(temp_db):
-    db.save_bot_config(enabled=True, max_trade_dollars=100.0, max_trades_per_day=3, cash_buffer_pct=10.0)
-    db.save_bot_config(enabled=False, max_trade_dollars=200.0, max_trades_per_day=5, cash_buffer_pct=20.0)
+    db.save_bot_config(
+        enabled=True, max_trades_per_day=3, cash_buffer_pct=10.0,
+        standard_trade_pct=10.0, high_conviction_trade_pct=20.0, position_cap_pct=20.0,
+    )
+    db.save_bot_config(
+        enabled=False, max_trades_per_day=5, cash_buffer_pct=20.0,
+        standard_trade_pct=15.0, high_conviction_trade_pct=25.0, position_cap_pct=30.0,
+    )
     config = db.get_bot_config()
     assert config["enabled"] == 0
-    assert config["max_trade_dollars"] == 200.0
+    assert config["standard_trade_pct"] == 15.0
     with db.get_conn() as conn:
         count = conn.execute("SELECT COUNT(*) FROM bot_config").fetchone()[0]
     assert count == 1
@@ -340,3 +351,39 @@ def test_get_submitted_bot_trades_only_returns_pending(temp_db):
     pending = db.get_submitted_bot_trades()
     assert len(pending) == 1
     assert pending[0]["ticker"] == "VTI"
+
+
+def _candidate(key, ctype="stock_buy", ticker="AAPL"):
+    return {"candidate_key": key, "candidate_type": ctype, "ticker": ticker, "asset_class": "stock",
+            "signal_strength": 2, "diff_pct": None, "detail": {"insiders": ["Alice"]}}
+
+
+def test_log_bot_candidates_and_get_observed_candidate_keys(temp_db):
+    db.log_bot_candidates("2026-08-23", [_candidate("stock_buy:AAPL"), _candidate("stock_buy:MSFT", ticker="MSFT")])
+    keys = db.get_observed_candidate_keys("2026-08-23")
+    assert keys == {"stock_buy:AAPL", "stock_buy:MSFT"}
+
+
+def test_log_bot_candidates_is_idempotent_per_run_date(temp_db):
+    db.log_bot_candidates("2026-08-23", [_candidate("stock_buy:AAPL")])
+    db.log_bot_candidates("2026-08-23", [_candidate("stock_buy:AAPL")])  # e.g. a retried run
+    with db.get_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM bot_signal_observations").fetchone()[0]
+    assert count == 1
+
+
+def test_get_prior_observation_run_date_finds_most_recent_logged_date_not_literally_yesterday(temp_db):
+    db.log_bot_candidates("2026-08-20", [_candidate("stock_buy:AAPL")])
+    # 2026-08-21 and 2026-08-22 were skipped (bot disabled) — no rows logged.
+    assert db.get_prior_observation_run_date("2026-08-23") == "2026-08-20"
+
+
+def test_get_prior_observation_run_date_returns_none_with_no_history(temp_db):
+    assert db.get_prior_observation_run_date("2026-08-23") is None
+
+
+def test_get_bot_candidates_for_date_decodes_detail_json(temp_db):
+    db.log_bot_candidates("2026-08-23", [_candidate("stock_buy:AAPL")])
+    candidates = db.get_bot_candidates_for_date("2026-08-23")
+    assert len(candidates) == 1
+    assert candidates[0]["detail"] == {"insiders": ["Alice"]}

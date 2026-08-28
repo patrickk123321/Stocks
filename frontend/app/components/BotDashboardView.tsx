@@ -5,11 +5,21 @@ import {
   Bank,
   ClockCounterClockwise,
   Info,
+  Target,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { fetchTrades } from "../lib/api";
-import { AlpacaNotConfiguredError, BotAccountInfo, BotConfig, BotTrade, getBotTrades, runBotNow } from "../lib/botApi";
+import {
+  AlpacaNotConfiguredError,
+  BotAccountInfo,
+  BotConfig,
+  BotSignalCandidate,
+  BotTrade,
+  getBotSignals,
+  getBotTrades,
+  runBotNow,
+} from "../lib/botApi";
 import BotSettingsForm from "./BotSettingsForm";
 
 const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50";
@@ -32,6 +42,27 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
+
+function SideBadge({ side }: { side: string }) {
+  const isBuy = side === "buy";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+        isBuy ? "bg-positive/15 text-positive" : "bg-destructive/15 text-destructive"
+      }`}
+    >
+      {isBuy ? "Buy" : "Sell"}
+    </span>
+  );
+}
+
+const TRIGGER_LABEL: Record<string, string> = {
+  cap_breach: "Position cap",
+  signal_sell: "Signal (sell)",
+  gap_overweight: "Rebalance (sell)",
+  gap_underweight: "Rebalance (buy)",
+  signal_buy: "Signal (buy)",
+};
 
 interface BotDashboardViewProps {
   config: BotConfig;
@@ -196,8 +227,10 @@ export default function BotDashboardView({ config, account, alpacaNotConfigured,
               <thead className="bg-muted">
                 <tr>
                   <th className="px-3 py-2 font-medium text-muted-foreground">Date</th>
+                  <th className="px-3 py-2 font-medium text-muted-foreground">Side</th>
                   <th className="px-3 py-2 font-medium text-muted-foreground">Ticker</th>
                   <th className="px-3 py-2 font-medium text-muted-foreground">Amount</th>
+                  <th className="px-3 py-2 font-medium text-muted-foreground">Trigger</th>
                   <th className="px-3 py-2 font-medium text-muted-foreground">Status</th>
                   <th className="px-3 py-2 font-medium text-muted-foreground">Rationale</th>
                 </tr>
@@ -206,8 +239,12 @@ export default function BotDashboardView({ config, account, alpacaNotConfigured,
                 {trades.map((t) => (
                   <tr key={t.id} className="border-t border-border">
                     <td className="px-3 py-2 text-xs text-muted-foreground">{t.run_date}</td>
+                    <td className="px-3 py-2">
+                      <SideBadge side={t.side} />
+                    </td>
                     <td className="px-3 py-2 font-semibold text-card-foreground">{t.ticker}</td>
                     <td className="px-3 py-2 font-mono text-card-foreground">{money(t.notional)}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{TRIGGER_LABEL[t.trigger_type] ?? t.trigger_type}</td>
                     <td className="px-3 py-2">
                       <StatusBadge status={t.status} />
                     </td>
@@ -220,7 +257,55 @@ export default function BotDashboardView({ config, account, alpacaNotConfigured,
         )}
       </div>
 
+      <BotPendingSignals />
       <BotNotableActivity />
+    </div>
+  );
+}
+
+function candidateLabel(c: BotSignalCandidate): string {
+  if (c.candidate_type === "gap_underweight") return `${c.asset_class} underweight`;
+  if (c.candidate_type === "gap_overweight") return `${c.asset_class} overweight`;
+  if (c.candidate_type === "stock_buy") return `${c.ticker} — buy signal`;
+  return `${c.ticker} — sell signal`;
+}
+
+function BotPendingSignals() {
+  const [data, setData] = useState<{ run_date: string | null; candidates: BotSignalCandidate[] } | null>(null);
+
+  useEffect(() => {
+    getBotSignals()
+      .then(setData)
+      .catch(() => setData({ run_date: null, candidates: [] }));
+  }, []);
+
+  if (!data || data.candidates.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
+      <div className="flex items-center gap-2">
+        <Target size={18} className="text-accent" aria-hidden="true" />
+        <h2 className="font-semibold text-card-foreground">Pending signals</h2>
+        <span className="ml-auto text-xs text-muted-foreground">As of {data.run_date}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Confirmed signals were also seen on the prior check and will be acted on next run. Pending ones were seen for
+        the first time today — they need to show up again on the next daily check before the bot trades on them.
+      </p>
+      <ul className="flex flex-col gap-1.5">
+        {data.candidates.map((c) => (
+          <li key={c.candidate_key} className="flex items-center justify-between gap-3 text-xs">
+            <span className="truncate text-card-foreground">{candidateLabel(c)}</span>
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 font-semibold ${
+                c.persisted ? "bg-positive/15 text-positive" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {c.persisted ? "Confirmed" : "Pending"}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -252,7 +337,8 @@ function BotNotableActivity() {
         <h2 className="font-semibold text-card-foreground">Notable recent activity</h2>
       </div>
       <p className="text-xs text-muted-foreground">
-        For your information only — does not affect the bot&apos;s trades. From the Trade Tracker, last 14 days.
+        A broad, unfiltered feed of recent activity from the Trade Tracker (any ticker, last 14 days) — for context.
+        The bot's actual buy/sell signals (clustered, threshold-checked) are in "Pending signals" below.
       </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
