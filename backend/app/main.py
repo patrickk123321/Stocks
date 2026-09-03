@@ -4,6 +4,7 @@ import threading
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import CORS_ALLOWED_ORIGINS
 from app.db import get_last_scrape_run, init_db
 from app.routers import congress, institutions, insiders
 from app.scheduler import backfill_if_empty, start_scheduler
@@ -14,7 +15,7 @@ app = FastAPI(title="Stocks API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
     # Browsers only expose the CORS-safelisted response headers to JS by default —
