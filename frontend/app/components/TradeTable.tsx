@@ -78,6 +78,10 @@ const PAGE_SIZE = 50;
 const SKELETON_ROWS = 8;
 const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50";
 const DEFAULT_FILTERS: Filters = { q: "", sort: undefined, order: "desc", dateFrom: "", dateTo: "", actor: null };
+// Mirrors the backend's per-category cooldown (backend/app/routers/*.py's
+// REFRESH_COOLDOWN_SECONDS) so the button visibly reflects the same window
+// the server is already enforcing, instead of letting a click fail silently.
+const REFRESH_COOLDOWN_SECONDS = 10;
 
 export default function TradeTable({ category, searchPlaceholder, columns, summary, emptyIcon: EmptyIcon = Database }: TradeTableProps) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
@@ -93,6 +97,13 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
   const [lastRun, setLastRun] = useState<ScrapeStatus | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return undefined;
+    const timeout = setTimeout(() => setCooldownRemaining((s) => s - 1), 1000);
+    return () => clearTimeout(timeout);
+  }, [cooldownRemaining]);
 
   const refreshStatus = async () => {
     try {
@@ -179,6 +190,11 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       );
     } finally {
       setRefreshing(false);
+      // The backend accepts (and starts its own cooldown clock on) this request
+      // whether or not the refresh itself succeeds — mirror that here so the
+      // button doesn't invite an immediate second click that's guaranteed to
+      // 429.
+      setCooldownRemaining(REFRESH_COOLDOWN_SECONDS);
     }
   };
 
@@ -242,11 +258,12 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           </button>
           <button
             onClick={handleRefresh}
-            disabled={refreshing}
+            disabled={refreshing || cooldownRemaining > 0}
+            title={cooldownRemaining > 0 ? `The last refresh just ran — wait ${cooldownRemaining}s before trying again` : undefined}
             className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
           >
             <ArrowsClockwise size={16} className={refreshing ? "animate-spin" : ""} aria-hidden="true" />
-            {refreshing ? "Refreshing…" : "Refresh now"}
+            {refreshing ? "Refreshing…" : cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s` : "Refresh now"}
           </button>
         </div>
       </div>
@@ -278,12 +295,12 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         </div>
 
         {filters.actor && (
-          <span className="flex items-center gap-1.5 rounded-full bg-accent/15 py-1 pl-3 pr-1.5 text-xs font-medium text-accent">
+          <span className="flex items-center gap-1.5 rounded-full bg-accent/15 py-1 pl-3 pr-1.5 text-xs font-medium text-accent-text">
             {summary.actorLabel}: {filters.actor}
             <button
               onClick={handleClearActor}
               aria-label={`Clear filter for ${filters.actor}`}
-              className={`flex h-4 w-4 cursor-pointer items-center justify-center rounded-full hover:bg-accent/20 ${FOCUS_RING}`}
+              className={`-m-1 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full hover:bg-accent/20 ${FOCUS_RING}`}
             >
               <X size={10} weight="bold" aria-hidden="true" />
             </button>
@@ -353,7 +370,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           <button
             onClick={() => load({ ...filters, order: filters.order === "desc" ? "asc" : "desc" })}
             aria-label={filters.order === "asc" ? "Sort descending" : "Sort ascending"}
-            className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
+            className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
           >
             {filters.order === "asc" ? <CaretUp size={13} aria-hidden="true" /> : <CaretDown size={13} aria-hidden="true" />}
           </button>
@@ -361,7 +378,10 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
           <WarningCircle size={18} aria-hidden="true" />
           <span>{error}</span>
         </div>
@@ -416,18 +436,8 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             return (
               <div key={rowKey} role="listitem">
                 <div
-                  role="button"
-                  tabIndex={0}
                   onClick={toggleExpand}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggleExpand();
-                    }
-                  }}
-                  aria-expanded={isOpen}
-                  aria-controls={panelId}
-                  className={`group relative flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/50 animate-fade-up ${FOCUS_RING} ${
+                  className={`group relative flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/50 animate-fade-up ${
                     i > 0 ? "border-t border-border" : ""
                   } ${isOpen ? "bg-muted/40" : ""}`}
                   style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
@@ -452,7 +462,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                           handleActorClick(actor);
                         }}
                         title={`Show only ${actor}'s ${summary.actorLabel.toLowerCase()} activity`}
-                        className={`truncate text-left text-sm font-medium text-card-foreground hover:text-accent hover:underline ${FOCUS_RING} rounded`}
+                        className={`truncate text-left text-sm font-medium text-card-foreground hover:text-accent-text hover:underline ${FOCUS_RING} rounded`}
                       >
                         {actor}
                       </button>
@@ -463,7 +473,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                               href={`/ticker/${encodeURIComponent(ticker)}`}
                               onClick={(e) => e.stopPropagation()}
                               title={`See everything tracked for ${ticker}`}
-                              className={`font-semibold text-foreground hover:text-accent hover:underline ${FOCUS_RING} rounded`}
+                              className={`font-semibold text-foreground hover:text-accent-text hover:underline ${FOCUS_RING} rounded`}
                             >
                               {ticker}
                             </Link>
@@ -484,11 +494,23 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                       )}
                       <p className="text-xs text-muted-foreground">{String(row[summary.dateKey] ?? "—")}</p>
                     </div>
-                    <CaretDown
-                      size={16}
-                      className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
-                      aria-hidden="true"
-                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpand();
+                      }}
+                      aria-expanded={isOpen}
+                      aria-controls={isOpen ? panelId : undefined}
+                      aria-label={isOpen ? "Collapse details" : "Expand details"}
+                      className={`-m-2.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
+                    >
+                      <CaretDown
+                        size={16}
+                        className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        aria-hidden="true"
+                      />
+                    </button>
                   </div>
                 </div>
 

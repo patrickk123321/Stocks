@@ -7,6 +7,11 @@
   --color-on-secondary: #ffffff;
   --color-accent: #7c3aed;
   --color-on-accent: #ffffff;
+  /* Text-safe variant of --color-accent: the base hue is 3.2-3.5:1 against
+     this app's dark backgrounds, which clears the 3:1 non-text/UI-component
+     floor but fails WCAG AA's 4.5:1 for actual text. This lighter tint is
+     used wherever accent renders as a link, active-state, or badge label. */
+  --color-accent-text: #a78bfa;
   --color-background: #020617;
   --color-foreground: #e7eaf3;
   --color-card: #10152b;
@@ -20,6 +25,11 @@
   --color-on-positive: #052e16;
   --color-warning: #fbbf24;
   --color-on-warning: #451a03;
+  /* Institutions' category accent — kept separate from --color-warning so
+     that hue is reserved exclusively for genuine alerts (scrape errors,
+     unverified sources) instead of doing double duty as decorative branding. */
+  --color-info: #38bdf8;
+  --color-on-info: #082f49;
   --color-ring: #a78bfa;
 }
 
@@ -30,6 +40,7 @@
   --color-on-secondary: var(--color-on-secondary);
   --color-accent: var(--color-accent);
   --color-on-accent: var(--color-on-accent);
+  --color-accent-text: var(--color-accent-text);
   --color-background: var(--color-background);
   --color-foreground: var(--color-foreground);
   --color-card: var(--color-card);
@@ -43,6 +54,8 @@
   --color-on-positive: var(--color-on-positive);
   --color-warning: var(--color-warning);
   --color-on-warning: var(--color-on-warning);
+  --color-info: var(--color-info);
+  --color-on-info: var(--color-on-info);
   --color-ring: var(--color-ring);
   --font-sans: var(--font-fira-sans);
   --font-mono: var(--font-fira-code);
@@ -54,11 +67,15 @@ body {
   font-family: var(--font-fira-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Scoped to the decorative entrance/pulse animations only — a blanket `*`
+   override here would also zero out functional transitions (hover color,
+   the row-expand caret rotation, focus rings), stripping feedback that
+   communicates a state change rather than just decorating one. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  .animate-fade-up,
+  .animate-pulse-dot {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
   }
 }
 

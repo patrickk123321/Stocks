@@ -46,7 +46,7 @@ function EntitySection({
             </div>
           ))
         ) : error ? (
-          <div className="flex items-center gap-2 px-4 py-4 text-sm text-destructive">
+          <div role="alert" className="flex items-center gap-2 px-4 py-4 text-sm text-destructive">
             <WarningCircle size={16} aria-hidden="true" />
             {error}
           </div>
@@ -182,7 +182,7 @@ export default function TickerPage() {
         <EntitySection
           icon={Buildings}
           title="Institutions (13F)"
-          accentClass="bg-warning/15 text-warning"
+          accentClass="bg-info/15 text-info"
           loading={institutionsLoading}
           error={institutionsError}
           rows={institutions}

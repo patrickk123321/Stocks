@@ -99,7 +99,7 @@ export default function PositionChanges() {
             key={f.key}
             onClick={() => setFilter(f.key)}
             className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${FOCUS_RING} ${
-              filter === f.key ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              filter === f.key ? "bg-accent/15 text-accent-text" : "text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
             {f.label}
@@ -112,7 +112,10 @@ export default function PositionChanges() {
       )}
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
           <WarningCircle size={18} aria-hidden="true" />
           <span>{error}</span>
         </div>
@@ -162,7 +165,8 @@ export default function PositionChanges() {
                       target="_blank"
                       rel="noopener noreferrer"
                       title="View filing"
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
+                      aria-label="View filing"
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
                     >
                       <ArrowSquareOut size={14} aria-hidden="true" />
                     </a>

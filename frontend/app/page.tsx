@@ -10,7 +10,8 @@ const PRODUCTS = [
     description: "Corporate insider trades, institutional 13F filings, and congressional trades in one place.",
     iconWrap: "bg-accent/15 text-accent",
     hoverBorder: "hover:border-accent/60",
-    glow: "group-hover:shadow-[0_0_0_1px_rgba(124,58,237,0.4),0_16px_40px_-12px_rgba(124,58,237,0.35)]",
+    glow:
+      "group-hover:shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-accent)_40%,transparent),0_16px_40px_-12px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]",
   },
 ];
 
@@ -90,7 +91,7 @@ function HeroChart() {
       viewBox="0 0 360 220"
       role="img"
       aria-label="Stylized upward market chart"
-      className="w-full text-accent"
+      className="w-full"
     >
       <defs>
         <linearGradient id="hero-line" x1="0" y1="0" x2="1" y2="0">

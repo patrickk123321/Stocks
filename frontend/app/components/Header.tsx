@@ -34,7 +34,7 @@ export default function Header() {
                 key={item.key}
                 href={item.href}
                 className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
-                  active ? "bg-accent/15 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  active ? "bg-accent/15 text-accent-text" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 <Icon size={16} weight={active ? "fill" : "regular"} aria-hidden="true" />

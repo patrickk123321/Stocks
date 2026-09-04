@@ -11,14 +11,14 @@ const TABS: { key: Category; label: string; icon: typeof UserCircle; active: str
     key: "insiders",
     label: "Corporate Insiders",
     icon: UserCircle,
-    active: "bg-accent/15 text-accent",
+    active: "bg-accent/15 text-accent-text",
     inactive: "text-muted-foreground hover:bg-muted hover:text-foreground",
   },
   {
     key: "institutions",
     label: "Institutions (13F)",
     icon: Buildings,
-    active: "bg-warning/15 text-warning",
+    active: "bg-info/15 text-info",
     inactive: "text-muted-foreground hover:bg-muted hover:text-foreground",
   },
   {
@@ -174,7 +174,7 @@ export default function TradeTrackerPage() {
                 onClick={() => setInstitutionsView(view)}
                 className={`cursor-pointer border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                   institutionsView === view
-                    ? "border-warning text-warning"
+                    ? "border-info text-info"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -188,6 +188,7 @@ export default function TradeTrackerPage() {
           <PositionChanges />
         ) : (
           <TradeTable
+            key={activeTab}
             category={activeTab}
             searchPlaceholder={SEARCH_PLACEHOLDERS[activeTab]}
             columns={COLUMNS[activeTab]}
