@@ -11,22 +11,22 @@ const TABS: { key: Category; label: string; icon: typeof UserCircle; active: str
     key: "insiders",
     label: "Corporate Insiders",
     icon: UserCircle,
-    active: "bg-accent/15 text-accent-text",
-    inactive: "text-muted-foreground hover:bg-muted hover:text-foreground",
+    active: "border-accent text-accent",
+    inactive: "border-transparent text-muted-foreground hover:text-foreground",
   },
   {
     key: "institutions",
     label: "Institutions (13F)",
     icon: Buildings,
-    active: "bg-info/15 text-info",
-    inactive: "text-muted-foreground hover:bg-muted hover:text-foreground",
+    active: "border-info text-info",
+    inactive: "border-transparent text-muted-foreground hover:text-foreground",
   },
   {
     key: "congress",
     label: "Congress",
     icon: Bank,
-    active: "bg-positive/15 text-positive",
-    inactive: "text-muted-foreground hover:bg-muted hover:text-foreground",
+    active: "border-positive text-positive",
+    inactive: "border-transparent text-muted-foreground hover:text-foreground",
   },
 ];
 
@@ -147,7 +147,7 @@ export default function TradeTrackerPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-1.5 rounded-xl border border-border bg-card p-1.5">
+        <div className="flex flex-wrap border-b border-border">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.key;
@@ -155,7 +155,7 @@ export default function TradeTrackerPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                className={`flex cursor-pointer items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 ${
                   active ? tab.active : tab.inactive
                 }`}
               >
@@ -172,7 +172,7 @@ export default function TradeTrackerPage() {
               <button
                 key={view}
                 onClick={() => setInstitutionsView(view)}
-                className={`cursor-pointer border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                className={`cursor-pointer border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 ${
                   institutionsView === view
                     ? "border-info text-info"
                     : "border-transparent text-muted-foreground hover:text-foreground"

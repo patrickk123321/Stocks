@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowSquareOut, ChartLineDown, ChartLineUp, Sparkle, WarningCircle } from "@phosphor-icons/react";
+import { ArrowSquareOut, WarningCircle } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { BackendUnreachableError, PositionChangeType, fetchPositionChanges } from "../lib/api";
 import { formatMeta } from "../lib/tradeFormat";
@@ -13,34 +13,20 @@ const FILTERS: { key: PositionChangeType | "ALL"; label: string }[] = [
 ];
 
 const PAGE_SIZE = 50;
-const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50";
+const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70";
 
 function changeBadge(type: string, pctChange: number | null) {
   if (type === "NEW") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-positive/15 px-2 py-0.5 text-xs font-semibold text-positive">
-        <Sparkle size={11} weight="fill" aria-hidden="true" />
-        New
-      </span>
-    );
+    return <span className="font-mono text-xs font-semibold uppercase tracking-wide text-positive">[New]</span>;
   }
   if (type === "EXITED") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive">
-        Exited
-      </span>
-    );
+    return <span className="font-mono text-xs font-semibold uppercase tracking-wide text-destructive">[Exited]</span>;
   }
   const up = (pctChange ?? 0) > 0;
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-        up ? "bg-positive/15 text-positive" : "bg-destructive/15 text-destructive"
-      }`}
-    >
-      {up ? <ChartLineUp size={11} weight="bold" aria-hidden="true" /> : <ChartLineDown size={11} weight="bold" aria-hidden="true" />}
-      {up ? "+" : ""}
-      {pctChange}%
+    <span className={`font-mono text-xs font-semibold uppercase tracking-wide ${up ? "text-positive" : "text-destructive"}`}>
+      [{up ? "+" : ""}
+      {pctChange}%]
     </span>
   );
 }
@@ -93,13 +79,13 @@ export default function PositionChanges() {
         reporting periods on file before it can show up here.
       </p>
 
-      <div className="flex flex-wrap gap-1.5 rounded-xl border border-border bg-card p-1.5">
+      <div className="flex flex-wrap border border-border bg-card">
         {FILTERS.map((f) => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${FOCUS_RING} ${
-              filter === f.key ? "bg-accent/15 text-accent-text" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            className={`cursor-pointer border-b-2 px-3 py-1.5 text-xs font-medium transition-colors ${FOCUS_RING} ${
+              filter === f.key ? "border-info text-info" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             {f.label}
@@ -114,19 +100,19 @@ export default function PositionChanges() {
       {error && (
         <div
           role="alert"
-          className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          className="flex items-center gap-2 border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           <WarningCircle size={18} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card" role={rows.length > 0 ? "list" : undefined}>
+      <div className="overflow-hidden border border-border bg-card" role={rows.length > 0 ? "list" : undefined}>
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
-              <div className="h-4 w-48 animate-pulse rounded bg-muted" />
-              <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-48 animate-pulse bg-muted" />
+              <div className="h-4 w-20 animate-pulse bg-muted" />
             </div>
           ))
         ) : rows.length === 0 && !error ? (
@@ -166,7 +152,7 @@ export default function PositionChanges() {
                       rel="noopener noreferrer"
                       title="View filing"
                       aria-label="View filing"
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
                     >
                       <ArrowSquareOut size={14} aria-hidden="true" />
                     </a>
@@ -182,7 +168,7 @@ export default function PositionChanges() {
         <button
           onClick={loadMore}
           disabled={loadingMore}
-          className={`cursor-pointer self-center rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+          className={`cursor-pointer self-center border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
         >
           {loadingMore ? "Loading…" : `Load more (${rows.length} of ${total.toLocaleString()})`}
         </button>

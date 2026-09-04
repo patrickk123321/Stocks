@@ -8,7 +8,6 @@ import {
   Database,
   DownloadSimple,
   MagnifyingGlass,
-  ShieldCheck,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
@@ -76,7 +75,7 @@ interface Filters {
 
 const PAGE_SIZE = 50;
 const SKELETON_ROWS = 8;
-const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50";
+const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70";
 const DEFAULT_FILTERS: Filters = { q: "", sort: undefined, order: "desc", dateFrom: "", dateTo: "", actor: null };
 // Mirrors the backend's per-category cooldown (backend/app/routers/*.py's
 // REFRESH_COOLDOWN_SECONDS) so the button visibly reflects the same window
@@ -245,14 +244,14 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && load({ ...filters, q: query })}
             placeholder={searchPlaceholder}
-            className="w-full rounded-lg border border-border bg-card py-2.5 pl-10 pr-3 text-base text-card-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/40 sm:text-sm"
+            className="w-full border border-border-strong bg-card py-2.5 pl-10 pr-3 text-base text-card-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/40 sm:text-sm"
           />
         </div>
         <div className="flex gap-3">
           <button
             onClick={() => load({ ...filters, q: query })}
             disabled={loading}
-            className={`flex-1 cursor-pointer rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
+            className={`flex-1 cursor-pointer bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
           >
             {loading ? "Searching…" : "Search"}
           </button>
@@ -260,7 +259,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             onClick={handleRefresh}
             disabled={refreshing || cooldownRemaining > 0}
             title={cooldownRemaining > 0 ? `The last refresh just ran — wait ${cooldownRemaining}s before trying again` : undefined}
-            className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
+            className={`flex flex-1 cursor-pointer items-center justify-center gap-2 border border-border-strong px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
           >
             <ArrowsClockwise size={16} className={refreshing ? "animate-spin" : ""} aria-hidden="true" />
             {refreshing ? "Refreshing…" : cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s` : "Refresh now"}
@@ -278,7 +277,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             type="date"
             value={filters.dateFrom}
             onChange={(e) => load({ ...filters, dateFrom: e.target.value })}
-            className={`cursor-pointer rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+            className={`cursor-pointer border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
           />
         </div>
         <div className="flex items-center gap-1.5 text-xs">
@@ -290,17 +289,17 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             type="date"
             value={filters.dateTo}
             onChange={(e) => load({ ...filters, dateTo: e.target.value })}
-            className={`cursor-pointer rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+            className={`cursor-pointer border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
           />
         </div>
 
         {filters.actor && (
-          <span className="flex items-center gap-1.5 rounded-full bg-accent/15 py-1 pl-3 pr-1.5 text-xs font-medium text-accent-text">
+          <span className="flex items-center gap-1.5 border border-border-strong py-1 pl-3 pr-1.5 font-mono text-xs text-accent">
             {summary.actorLabel}: {filters.actor}
             <button
               onClick={handleClearActor}
               aria-label={`Clear filter for ${filters.actor}`}
-              className={`-m-1 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full hover:bg-accent/20 ${FOCUS_RING}`}
+              className={`-m-1 flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
             >
               <X size={10} weight="bold" aria-hidden="true" />
             </button>
@@ -310,7 +309,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         <button
           onClick={handleExport}
           disabled={exporting}
-          className={`ml-auto flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+          className={`ml-auto flex cursor-pointer items-center gap-1.5 border border-border-strong px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
         >
           <DownloadSimple size={13} aria-hidden="true" />
           {exporting ? "Exporting…" : "Export CSV"}
@@ -320,7 +319,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       {exportNotice && (
         <div
           role="status"
-          className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-xs text-warning"
+          className="flex items-start gap-2 border border-warning/40 bg-warning/10 px-4 py-2.5 text-xs text-warning"
         >
           <WarningCircle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
           <span>{exportNotice}</span>
@@ -332,11 +331,10 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span
-            className={`flex items-center gap-1 text-xs ${summary.sourceVerified ? "text-positive" : "text-warning"}`}
+            className={`font-mono text-xs uppercase tracking-wide ${summary.sourceVerified ? "text-positive" : "text-warning"}`}
             title={summary.sourceNote}
           >
-            {summary.sourceVerified && <ShieldCheck size={13} weight="fill" aria-hidden="true" />}
-            {summary.sourceLabel}
+            {summary.sourceVerified ? "Verified" : "Unverified"} · {summary.sourceLabel}
           </span>
           {lastRun && (
             <span
@@ -358,7 +356,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             id={`sort-${category}`}
             value={filters.sort ?? ""}
             onChange={(e) => load({ ...filters, sort: e.target.value || undefined })}
-            className={`cursor-pointer rounded-md border border-border bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+            className={`cursor-pointer border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
           >
             <option value="">Most recent</option>
             {columns.map((col) => (
@@ -370,7 +368,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           <button
             onClick={() => load({ ...filters, order: filters.order === "desc" ? "asc" : "desc" })}
             aria-label={filters.order === "asc" ? "Sort descending" : "Sort ascending"}
-            className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
+            className={`flex h-8 w-8 cursor-pointer items-center justify-center border border-border-strong text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
           >
             {filters.order === "asc" ? <CaretUp size={13} aria-hidden="true" /> : <CaretDown size={13} aria-hidden="true" />}
           </button>
@@ -380,24 +378,24 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       {error && (
         <div
           role="alert"
-          className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          className="flex items-center gap-2 border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           <WarningCircle size={18} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card" role={rows.length > 0 ? "list" : undefined}>
+      <div className="overflow-hidden border border-border bg-card" role={rows.length > 0 ? "list" : undefined}>
         {loading && rows.length === 0 ? (
           Array.from({ length: SKELETON_ROWS }).map((_, i) => (
             <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
-              <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-              <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-40 animate-pulse bg-muted" />
+              <div className="h-4 w-24 animate-pulse bg-muted" />
             </div>
           ))
         ) : rows.length === 0 && !error ? (
           <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <div className="flex h-12 w-12 items-center justify-center bg-muted text-muted-foreground">
               <EmptyIcon size={22} aria-hidden="true" />
             </div>
             <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -417,8 +415,6 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             const targetName = String(row[summary.targetNameKey] ?? "");
             const badgeValue = summary.badgeKey ? String(row[summary.badgeKey] ?? "") : "";
             const sourceUrl = row.source_url ? String(row.source_url) : null;
-            const tone = summary.badgeKey && badgeValue ? badgeTone(summary.badgeKey, badgeValue) : null;
-            const barClass = tone === "positive" ? "bg-positive" : tone === "negative" ? "bg-destructive" : tone === "neutral" ? "bg-border" : "bg-accent";
             // Keying on loadToken (bumped once per fresh load/search/sort/category-switch, not on
             // loadMore or expand/collapse) makes the entrance animation replay on a fresh result set
             // without replaying every time a row is merely toggled open or closed.
@@ -437,22 +433,16 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
               <div key={rowKey} role="listitem">
                 <div
                   onClick={toggleExpand}
-                  className={`group relative flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/50 animate-fade-up ${
+                  className={`flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/50 animate-fade-up ${
                     i > 0 ? "border-t border-border" : ""
                   } ${isOpen ? "bg-muted/40" : ""}`}
                   style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
                 >
-                  <span
-                    aria-hidden="true"
-                    className={`absolute inset-y-0 left-0 w-0.5 ${barClass} transition-opacity ${
-                      isOpen ? "opacity-100" : "opacity-0 group-hover:opacity-60"
-                    }`}
-                  />
                   <div className="flex min-w-0 items-center gap-3">
                     {badgeValue && badge(badgeLabel(summary.badgeKey!, badgeValue), badgeTone(summary.badgeKey!, badgeValue))}
                     {chamber && (
-                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {chamber}
+                      <span className="shrink-0 font-mono text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        [{chamber}]
                       </span>
                     )}
                     <div className="min-w-0">
@@ -462,7 +452,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                           handleActorClick(actor);
                         }}
                         title={`Show only ${actor}'s ${summary.actorLabel.toLowerCase()} activity`}
-                        className={`truncate text-left text-sm font-medium text-card-foreground hover:text-accent-text hover:underline ${FOCUS_RING} rounded`}
+                        className={`truncate text-left text-sm font-medium text-card-foreground hover:text-accent hover:underline ${FOCUS_RING}`}
                       >
                         {actor}
                       </button>
@@ -473,7 +463,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                               href={`/ticker/${encodeURIComponent(ticker)}`}
                               onClick={(e) => e.stopPropagation()}
                               title={`See everything tracked for ${ticker}`}
-                              className={`font-semibold text-foreground hover:text-accent-text hover:underline ${FOCUS_RING} rounded`}
+                              className={`font-semibold text-foreground hover:text-accent hover:underline ${FOCUS_RING}`}
                             >
                               {ticker}
                             </Link>
@@ -503,7 +493,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                       aria-expanded={isOpen}
                       aria-controls={isOpen ? panelId : undefined}
                       aria-label={isOpen ? "Collapse details" : "Expand details"}
-                      className={`-m-2.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
+                      className={`-m-2.5 flex h-10 w-10 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
                     >
                       <CaretDown
                         size={16}
@@ -515,11 +505,11 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                 </div>
 
                 {isOpen && (
-                  <div id={panelId} role="region" className="border-t border-border bg-background/40 px-4 py-4">
+                  <div id={panelId} role="region" className="border-t border-border bg-muted/30 px-4 py-4">
                     <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
                       {columns.map((col) => (
                         <div key={col.key} className="min-w-0">
-                          <dt className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">{col.label}</dt>
+                          <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{col.label}</dt>
                           <dd className="mt-0.5 truncate font-mono text-sm text-card-foreground">{renderCell(col.key, row[col.key])}</dd>
                         </div>
                       ))}
@@ -527,10 +517,9 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                     <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex max-w-md flex-col gap-1">
                         <span
-                          className={`flex items-center gap-1 text-xs font-medium ${rowSource.verified ? "text-positive" : "text-warning"}`}
+                          className={`font-mono text-xs font-medium uppercase tracking-wide ${rowSource.verified ? "text-positive" : "text-warning"}`}
                         >
-                          {rowSource.verified && <ShieldCheck size={12} weight="fill" aria-hidden="true" />}
-                          {rowSource.label}
+                          {rowSource.verified ? "Verified" : "Unverified"} · {rowSource.label}
                         </span>
                         <p className="text-xs text-muted-foreground">{rowSource.note}</p>
                       </div>
@@ -539,13 +528,13 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                           href={sourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={`flex w-fit items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted ${FOCUS_RING}`}
+                          className={`flex w-fit items-center gap-1.5 border border-border-strong px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted ${FOCUS_RING}`}
                         >
                           View original filing
                           <ArrowSquareOut size={13} aria-hidden="true" />
                         </a>
                       ) : (
-                        <p className="text-xs text-muted-foreground/70">
+                        <p className="text-xs text-muted-foreground/85">
                           Source link unavailable for this row — Refresh now to fetch it with a live link.
                         </p>
                       )}
@@ -562,7 +551,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         <button
           onClick={loadMore}
           disabled={loadingMore}
-          className={`cursor-pointer self-center rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+          className={`cursor-pointer self-center border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
         >
           {loadingMore ? "Loading…" : `Load more (${rows.length} of ${total.toLocaleString()})`}
         </button>

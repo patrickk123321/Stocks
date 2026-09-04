@@ -6,13 +6,8 @@ const BUY_CODES = new Set(["P", "A", "M"]);
 const SELL_CODES = new Set(["S", "D", "F"]);
 
 export function badge(label: string, tone: BadgeTone) {
-  const cls =
-    tone === "positive"
-      ? "bg-positive/15 text-positive"
-      : tone === "negative"
-        ? "bg-destructive/15 text-destructive"
-        : "bg-muted text-muted-foreground";
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>;
+  const cls = tone === "positive" ? "text-positive" : tone === "negative" ? "text-destructive" : "text-muted-foreground";
+  return <span className={`font-mono text-xs font-semibold uppercase tracking-wide ${cls}`}>[{label}]</span>;
 }
 
 export function badgeTone(key: string, value: string): BadgeTone {
@@ -32,7 +27,7 @@ export function badgeLabel(key: string, value: string): string {
 
 export function renderCell(key: string, value: unknown): ReactNode {
   const str = value === null || value === undefined || value === "" ? "" : String(value);
-  if (!str) return <span className="text-muted-foreground/50">—</span>;
+  if (!str) return <span className="text-muted-foreground/85">—</span>;
   if (key === "acquired_disposed" || key === "transaction_code" || key === "transaction_type") {
     return badge(badgeLabel(key, str), badgeTone(key, str));
   }

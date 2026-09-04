@@ -32,17 +32,17 @@ function EntitySection({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${accentClass}`}>
+        <span className={`flex h-8 w-8 items-center justify-center border border-border-strong ${accentClass}`}>
           <Icon size={16} aria-hidden="true" />
         </span>
         <h2 className="font-semibold text-foreground">{title}</h2>
       </div>
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="overflow-hidden border border-border bg-card">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
-              <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-              <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-40 animate-pulse bg-muted" />
+              <div className="h-4 w-24 animate-pulse bg-muted" />
             </div>
           ))
         ) : error ? (
@@ -126,7 +126,7 @@ export default function TickerPage() {
         <EntitySection
           icon={UserCircle}
           title="Corporate Insiders"
-          accentClass="bg-accent/15 text-accent"
+          accentClass="text-accent"
           loading={insidersLoading}
           error={insidersError}
           rows={insiders}
@@ -154,7 +154,7 @@ export default function TickerPage() {
         <EntitySection
           icon={Bank}
           title="Congress"
-          accentClass="bg-positive/15 text-positive"
+          accentClass="text-positive"
           loading={congressLoading}
           error={congressError}
           rows={congress}
@@ -182,7 +182,7 @@ export default function TickerPage() {
         <EntitySection
           icon={Buildings}
           title="Institutions (13F)"
-          accentClass="bg-info/15 text-info"
+          accentClass="text-info"
           loading={institutionsLoading}
           error={institutionsError}
           rows={institutions}
@@ -206,7 +206,7 @@ export default function TickerPage() {
         />
 
         {companyName && (
-          <p className="text-xs text-muted-foreground/70">
+          <p className="text-xs text-muted-foreground/85">
             Institutional holdings above are matched by company name (&quot;{companyName}&quot;), not ticker — 13F filings don&apos;t report
             ticker symbols, only CUSIP, so this match is best-effort rather than exhaustive.
           </p>

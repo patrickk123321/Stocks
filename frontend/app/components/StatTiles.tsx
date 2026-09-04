@@ -10,8 +10,8 @@ interface StatTilesProps {
 
 function Tile({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2">
-      <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+    <div className="border border-border bg-card px-3 py-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="mt-0.5 font-mono text-sm text-card-foreground">{children}</div>
     </div>
   );
@@ -41,7 +41,7 @@ export default function StatTiles({ total, rows, summary }: StatTilesProps) {
       <Tile label="Buy / sell in view">
         {counted > 0 ? (
           <div className="flex flex-col gap-1">
-            <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div className="flex h-1.5 w-full overflow-hidden bg-muted">
               <div className="bg-positive" style={{ width: `${positivePct}%` }} />
               <div className="bg-destructive" style={{ width: `${100 - positivePct}%` }} />
             </div>

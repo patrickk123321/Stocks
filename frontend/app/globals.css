@@ -1,36 +1,39 @@
 @import "tailwindcss";
 
+/* "EDGAR Register" — a light, federal-filing-system palette replacing the
+   prior dark/purple theme. Every pairing below is contrast-verified (WCAG
+   relative luminance): text pairings clear 4.5:1, --color-border-strong
+   (used only on interactive control boundaries — inputs, selects) clears
+   3:1; --color-border stays a plain low-contrast hairline, used only for
+   card/row dividers where the fill-color change also signals the boundary,
+   not as the sole cue for an interactive element. */
 :root {
-  --color-primary: #0f172a;
+  --color-primary: #16181d;
   --color-on-primary: #ffffff;
-  --color-secondary: #1e293b;
-  --color-on-secondary: #ffffff;
-  --color-accent: #7c3aed;
+  --color-secondary: #eef0f2;
+  --color-on-secondary: #16181d;
+  --color-accent: #1a4480;
   --color-on-accent: #ffffff;
-  /* Text-safe variant of --color-accent: the base hue is 3.2-3.5:1 against
-     this app's dark backgrounds, which clears the 3:1 non-text/UI-component
-     floor but fails WCAG AA's 4.5:1 for actual text. This lighter tint is
-     used wherever accent renders as a link, active-state, or badge label. */
-  --color-accent-text: #a78bfa;
-  --color-background: #020617;
-  --color-foreground: #e7eaf3;
-  --color-card: #10152b;
-  --color-card-foreground: #e7eaf3;
-  --color-muted: #1a2036;
-  --color-muted-foreground: #94a3b8;
-  --color-border: #262e4a;
-  --color-destructive: #f87171;
-  --color-on-destructive: #450a0a;
-  --color-positive: #34d399;
-  --color-on-positive: #052e16;
-  --color-warning: #fbbf24;
-  --color-on-warning: #451a03;
-  /* Institutions' category accent — kept separate from --color-warning so
-     that hue is reserved exclusively for genuine alerts (scrape errors,
-     unverified sources) instead of doing double duty as decorative branding. */
-  --color-info: #38bdf8;
-  --color-on-info: #082f49;
-  --color-ring: #a78bfa;
+  --color-background: #f4f5f7;
+  --color-foreground: #16181d;
+  --color-card: #fbfbfa;
+  --color-card-foreground: #16181d;
+  --color-muted: #e8eaed;
+  --color-muted-foreground: #4b5563;
+  --color-border: #d6d9df;
+  --color-border-strong: #818a9b;
+  --color-destructive: #b91c1c;
+  --color-on-destructive: #ffffff;
+  --color-positive: #166534;
+  --color-on-positive: #ffffff;
+  --color-warning: #92400e;
+  --color-on-warning: #ffffff;
+  /* Institutions' category color — distinct from --color-accent (Insiders)
+     and --color-positive (Congress); a muted federal-document-stamp brick
+     red-brown, not a decorative choice. */
+  --color-info: #9a3412;
+  --color-on-info: #ffffff;
+  --color-ring: #1a4480;
 }
 
 @theme inline {
@@ -40,7 +43,6 @@
   --color-on-secondary: var(--color-on-secondary);
   --color-accent: var(--color-accent);
   --color-on-accent: var(--color-on-accent);
-  --color-accent-text: var(--color-accent-text);
   --color-background: var(--color-background);
   --color-foreground: var(--color-foreground);
   --color-card: var(--color-card);
@@ -48,6 +50,7 @@
   --color-muted: var(--color-muted);
   --color-muted-foreground: var(--color-muted-foreground);
   --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
   --color-destructive: var(--color-destructive);
   --color-on-destructive: var(--color-on-destructive);
   --color-positive: var(--color-positive);
@@ -57,14 +60,19 @@
   --color-info: var(--color-info);
   --color-on-info: var(--color-on-info);
   --color-ring: var(--color-ring);
-  --font-sans: var(--font-fira-sans);
+  --font-sans: var(--font-public-sans);
   --font-mono: var(--font-fira-code);
 }
 
 body {
   background: var(--color-background);
   color: var(--color-foreground);
-  font-family: var(--font-fira-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 25%, var(--color-card));
+  color: var(--color-foreground);
 }
 
 /* Scoped to the decorative entrance/pulse animations only — a blanket `*`
