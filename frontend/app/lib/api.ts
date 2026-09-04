@@ -1,10 +1,12 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+// Strips any trailing slash(es) — every call site below appends a path that
+// starts with "/", so a trailing slash here would produce a "//" that 404s.
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 export type Category = "insiders" | "institutions" | "congress";
 
 export class BackendUnreachableError extends Error {
   constructor() {
-    super(`Can't reach the backend at ${API_BASE} — make sure it's running.`);
+    super(`Can't reach the backend at ${API_BASE} — it may be down, or this site's origin may not be in the backend's CORS_ALLOWED_ORIGINS.`);
     this.name = "BackendUnreachableError";
   }
 }
