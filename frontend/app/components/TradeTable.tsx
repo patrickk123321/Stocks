@@ -109,10 +109,21 @@ function filtersFromSearchParams(category: Category, searchParams: ReadonlyURLSe
   };
 }
 
+// The dense row list can't afford a per-row shadow, so category identity on an
+// expanded row is carried by a left border in the category's color instead —
+// consistent with the icon-tile/tab-underline/text-color signifier pattern
+// documented in DESIGN.md.
+const CATEGORY_BORDER_CLASS: Record<Category, string> = {
+  insiders: "border-l-accent",
+  institutions: "border-l-info",
+  congress: "border-l-positive",
+};
+
 export default function TradeTable({ category, searchPlaceholder, columns, summary, emptyIcon: EmptyIcon = Database }: TradeTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const categoryBorderClass = CATEGORY_BORDER_CLASS[category];
 
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [total, setTotal] = useState(0);
@@ -299,14 +310,14 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && load({ ...filters, q: query })}
             placeholder={searchPlaceholder}
-            className="w-full border border-border-strong bg-card py-2.5 pl-10 pr-3 text-base text-card-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/40 sm:text-sm"
+            className="w-full rounded-md border border-border-strong bg-card py-3 pl-10 pr-3 text-base text-card-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/40 sm:text-sm"
           />
         </div>
         <div className="flex gap-3">
           <button
             onClick={() => load({ ...filters, q: query })}
             disabled={loading}
-            className={`flex-1 cursor-pointer bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-[opacity,transform] duration-150 ease-out hover:opacity-90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
+            className={`flex-1 cursor-pointer rounded-md bg-accent px-4 py-3 text-sm font-medium text-on-accent transition-[opacity,transform] duration-150 ease-out hover:opacity-90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
           >
             {loading ? "Searching…" : "Search"}
           </button>
@@ -314,7 +325,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             onClick={handleRefresh}
             disabled={refreshing || cooldownRemaining > 0}
             title={cooldownRemaining > 0 ? `The last refresh just ran — wait ${cooldownRemaining}s before trying again` : undefined}
-            className={`flex flex-1 cursor-pointer items-center justify-center gap-2 border border-border-strong px-4 py-2.5 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
+            className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border border-border-strong px-4 py-3 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
           >
             <ArrowsClockwise size={16} className={refreshing ? "animate-spin" : ""} aria-hidden="true" />
             {refreshing ? "Refreshing…" : cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s` : "Refresh now"}
@@ -333,10 +344,10 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
               type="date"
               value={filters.dateFrom}
               onChange={(e) => load({ ...filters, dateFrom: e.target.value })}
-              className={`cursor-pointer border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+              className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
             />
             {!filters.dateFrom && (
-              <span className="pointer-events-none absolute inset-px flex items-center bg-card px-2 text-xs text-muted-foreground/70">
+              <span className="pointer-events-none absolute inset-px flex items-center rounded-md bg-card px-2 text-xs text-muted-foreground/70">
                 Any date
               </span>
             )}
@@ -352,10 +363,10 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
               type="date"
               value={filters.dateTo}
               onChange={(e) => load({ ...filters, dateTo: e.target.value })}
-              className={`cursor-pointer border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+              className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
             />
             {!filters.dateTo && (
-              <span className="pointer-events-none absolute inset-px flex items-center bg-card px-2 text-xs text-muted-foreground/70">
+              <span className="pointer-events-none absolute inset-px flex items-center rounded-md bg-card px-2 text-xs text-muted-foreground/70">
                 Any date
               </span>
             )}
@@ -363,7 +374,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         </div>
 
         {filters.actor && (
-          <span className="flex items-center gap-1.5 border border-border-strong py-1 pl-3 pr-1.5 font-mono text-xs text-accent">
+          <span className="flex items-center gap-1.5 rounded-md border border-border-strong py-1 pl-3 pr-1.5 font-mono text-xs text-accent">
             {summary.actorLabel}: {filters.actor}
             <button
               onClick={handleClearActor}
@@ -378,7 +389,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         <button
           onClick={handleExport}
           disabled={exporting}
-          className={`ml-auto flex cursor-pointer items-center gap-1.5 border border-border-strong px-3 py-1.5 text-xs font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+          className={`ml-auto flex cursor-pointer items-center gap-1.5 rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
         >
           <DownloadSimple size={14} aria-hidden="true" />
           {exporting ? "Exporting…" : "Export CSV"}
@@ -388,7 +399,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       {exportNotice && (
         <div
           role="status"
-          className={`flex items-start gap-2 border px-4 py-2.5 text-xs ${
+          className={`flex items-start gap-2 rounded-lg border px-4 py-2.5 text-xs ${
             exportNotice.tone === "positive" ? "border-positive/40 bg-positive/10 text-positive" : "border-warning/40 bg-warning/10 text-warning"
           }`}
         >
@@ -431,7 +442,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             id={`sort-${category}`}
             value={filters.sort ?? ""}
             onChange={(e) => load({ ...filters, sort: e.target.value || undefined })}
-            className={`cursor-pointer border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+            className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
           >
             <option value="">Most recent</option>
             {columns.map((col) => (
@@ -443,7 +454,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           <button
             onClick={() => load({ ...filters, order: filters.order === "desc" ? "asc" : "desc" })}
             aria-label={filters.order === "asc" ? "Sort descending" : "Sort ascending"}
-            className={`flex h-8 w-8 cursor-pointer items-center justify-center border border-border-strong text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.97] ${FOCUS_RING}`}
+            className={`flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border-strong text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.97] ${FOCUS_RING}`}
           >
             {filters.order === "asc" ? <CaretUp size={14} aria-hidden="true" /> : <CaretDown size={14} aria-hidden="true" />}
           </button>
@@ -453,36 +464,39 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
       {error && (
         <div
           role="alert"
-          className="flex items-center gap-2 border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           <WarningCircle size={16} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="overflow-hidden border border-border bg-card" role={rows.length > 0 ? "list" : undefined}>
+      <div className="flex flex-col gap-3" role={rows.length > 0 ? "list" : undefined}>
         {loading && rows.length === 0 ? (
           Array.from({ length: SKELETON_ROWS }).map((_, i) => (
-            <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="h-4 w-16 shrink-0 animate-pulse bg-muted" />
+            <div
+              key={i}
+              className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-5 py-4 shadow-sm"
+            >
+              <div className="flex min-w-0 items-center gap-3.5">
+                <div className="h-4 w-16 shrink-0 animate-pulse rounded bg-muted" />
                 <div className="flex min-w-0 flex-col gap-1.5">
-                  <div className="h-4 w-32 animate-pulse bg-muted" />
-                  <div className="h-3 w-20 animate-pulse bg-muted" />
+                  <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                  <div className="h-3 w-20 animate-pulse rounded bg-muted" />
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-4">
                 <div className="hidden flex-col items-end gap-1.5 sm:flex">
-                  <div className="h-3 w-14 animate-pulse bg-muted" />
-                  <div className="h-3 w-16 animate-pulse bg-muted" />
+                  <div className="h-3 w-14 animate-pulse rounded bg-muted" />
+                  <div className="h-3 w-16 animate-pulse rounded bg-muted" />
                 </div>
-                <div className="h-4 w-4 animate-pulse bg-muted" />
+                <div className="h-4 w-4 animate-pulse rounded bg-muted" />
               </div>
             </div>
           ))
         ) : rows.length === 0 && !error ? (
-          <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
-            <div className="flex h-12 w-12 items-center justify-center bg-muted text-muted-foreground">
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-border bg-card px-4 py-16 text-center shadow-sm">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted text-muted-foreground">
               <EmptyIcon size={22} aria-hidden="true" />
             </div>
             <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -517,15 +531,19 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             const toggleExpand = () => setExpanded(isOpen ? null : i);
 
             return (
-              <div key={rowKey} role="listitem">
+              <div
+                key={rowKey}
+                role="listitem"
+                className="overflow-hidden rounded-lg border border-border bg-card shadow-sm animate-fade-up"
+                style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
+              >
                 <div
                   onClick={toggleExpand}
-                  className={`flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-muted/50 animate-fade-up ${
-                    i > 0 ? "border-t border-border" : ""
-                  } ${isOpen ? "bg-muted/40" : ""}`}
-                  style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
+                  className={`flex w-full cursor-pointer items-center justify-between gap-4 border-l-2 px-5 py-4 text-left transition-colors hover:bg-muted/50 ${
+                    isOpen ? `${categoryBorderClass} bg-muted/40` : "border-l-transparent"
+                  }`}
                 >
-                  <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-3.5">
                     {badgeValue &&
                       badge(
                         badgeLabel(summary.badgeKey!, badgeValue),
@@ -544,7 +562,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                           handleActorClick(actor);
                         }}
                         title={`Show only ${actor}'s ${summary.actorLabel.toLowerCase()} activity`}
-                        className={`truncate text-left text-sm font-medium text-card-foreground hover:text-accent hover:underline ${FOCUS_RING}`}
+                        className={`truncate text-left text-sm font-semibold text-card-foreground hover:text-accent hover:underline ${FOCUS_RING}`}
                       >
                         {actor}
                       </button>
@@ -598,7 +616,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                 </div>
 
                 {isOpen && (
-                  <div id={panelId} role="region" className="border-t border-border bg-muted/30 px-4 py-4">
+                  <div id={panelId} role="region" className="border-t border-border bg-muted/30 px-5 py-5">
                     <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
                       {columns.map((col) => (
                         <div key={col.key} className="min-w-0">
@@ -621,7 +639,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                           href={sourceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={`flex w-fit items-center gap-1.5 border border-border-strong px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted ${FOCUS_RING}`}
+                          className={`flex w-fit items-center gap-1.5 rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted ${FOCUS_RING}`}
                         >
                           View original filing
                           <ArrowSquareOut size={14} aria-hidden="true" />
@@ -644,7 +662,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         <button
           onClick={loadMore}
           disabled={loadingMore}
-          className={`cursor-pointer self-center border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+          className={`cursor-pointer self-center rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
         >
           {loadingMore ? "Loading…" : `Load more (${rows.length} of ${total.toLocaleString()})`}
         </button>

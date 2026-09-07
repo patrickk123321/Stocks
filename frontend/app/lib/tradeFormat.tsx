@@ -39,11 +39,22 @@ export function badgeTitle(key: string, value: string): string | undefined {
   return undefined;
 }
 
+// Tailwind's scanner needs each class name written out literally per branch —
+// building the class string via interpolation (e.g. `bg-${tone}/12`) would not
+// be detected and the CSS wouldn't be generated.
 export function badge(label: string, tone: BadgeTone, title?: string) {
-  const cls = tone === "positive" ? "text-positive" : tone === "negative" ? "text-destructive" : "text-muted-foreground";
+  const cls =
+    tone === "positive"
+      ? "bg-positive/12 text-positive"
+      : tone === "negative"
+        ? "bg-destructive/12 text-destructive"
+        : "bg-muted-foreground/12 text-muted-foreground";
   return (
-    <span className={`font-mono text-xs font-semibold uppercase tracking-wide ${cls}`} title={title}>
-      [{label}]
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide ${cls}`}
+      title={title}
+    >
+      {label}
     </span>
   );
 }

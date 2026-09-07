@@ -38,16 +38,16 @@ const CATEGORIES = [
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col overflow-x-clip">
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-16 px-6 py-16 sm:py-20">
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-20 px-6 py-16 sm:py-20">
         <section className="grid grid-cols-1 items-center gap-10 sm:grid-cols-[1.1fr_0.9fr] sm:gap-6">
           <div className="flex flex-col items-start gap-5 animate-fade-up">
-            <div className="flex items-center gap-2 border border-border bg-card py-1.5 pl-2.5 pr-3 text-xs font-medium text-muted-foreground">
+            <div className="flex items-center gap-2 rounded-md border border-border bg-card py-1.5 pl-2.5 pr-3 text-xs font-medium text-muted-foreground">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-pulse-dot rounded-full bg-positive" />
               </span>
               Insider trades refresh twice daily at 9:00 AM and 4:30 PM
             </div>
-            <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">Stocks</h1>
+            <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">Stocks</h1>
             <p className="max-w-md text-base leading-relaxed text-muted-foreground">
               A personal investing platform: track corporate insiders, institutional investors, and Congress in one
               place.
@@ -70,8 +70,8 @@ export default function Home() {
                 className="animate-fade-up focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 style={{ animationDelay: `${150 + i * 75}ms` }}
               >
-                <div className="flex h-full cursor-pointer flex-col gap-5 border border-border bg-card p-6 transition-colors hover:border-accent">
-                  <div className="flex h-11 w-11 items-center justify-center border border-border-strong text-accent">
+                <div className="flex h-full cursor-pointer flex-col gap-5 rounded-xl border border-border bg-card p-7 shadow-sm transition-[border-color,box-shadow] duration-150 ease-out hover:border-accent hover:shadow-md">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-md border border-border-strong text-accent">
                     <Icon size={22} weight="regular" aria-hidden="true" />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -84,14 +84,17 @@ export default function Home() {
           })}
         </section>
 
-        <section className="flex flex-col gap-5 border-t border-border pt-12">
+        <section className="flex flex-col gap-5 border-t border-border pt-14">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">What&apos;s tracked</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {CATEGORIES.map((category) => {
               const Icon = category.icon;
               return (
-                <div key={category.key} className="flex flex-col gap-3 border border-border bg-card p-5">
-                  <div className={`flex h-9 w-9 items-center justify-center border border-border-strong ${category.colorClass}`}>
+                <div
+                  key={category.key}
+                  className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6 shadow-sm transition-shadow duration-150 ease-out hover:shadow-md"
+                >
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-md border border-border-strong ${category.colorClass}`}>
                     <Icon size={16} weight="regular" aria-hidden="true" />
                   </div>
                   <div className="flex flex-col gap-1">

@@ -1,0 +1,100 @@
+# DESIGN.md — "Ledger"
+
+This document describes the visual design system of the Stocks frontend as it actually exists in code today. It is derived from the shipped source (`frontend/app/globals.css`, `layout.tsx`, and the components listed below), not from a plan or intention. If something here stops matching the code, the code wins — update this file.
+
+The system is called **Ledger**: a warm ivory/parchment, ink-navy, antique-brass palette evoking a private bank statement or financial journal. It replaces two prior identities — a dark-near-black/saturated-purple theme (criticized as a generic AI-dashboard look) and, after that, a flat, zero-shadow, zero-radius federal-filing-form theme called "EDGAR Register" (criticized as drab, cramped, and personality-free). Ledger is a deliberate third direction: warm rather than gray, real depth rather than flat, and a genuine typographic anchor rather than uniform weight everywhere — while keeping the underlying data/IA (three trade categories, table structure, filters) untouched.
+
+## Color tokens
+
+All tokens are defined once in `frontend/app/globals.css` under `:root`, then re-exposed as Tailwind theme colors via `@theme inline` (so `bg-accent`, `text-muted-foreground`, `border-border-strong`, etc. are all available as Tailwind utility classes). There is no dark-mode block — `layout.tsx` hardcodes `data-theme="light"` on `<html>`.
+
+| Token | Hex | Semantic use |
+|---|---|---|
+| `--color-primary` | `#1a1d29` | Ink-navy; backs `--color-foreground`, not directly used as a Tailwind color in pages. |
+| `--color-on-primary` | `#ffffff` | Text/icon color for content on top of `--color-primary`. |
+| `--color-secondary` | `#f1ead9` | Secondary warm surface token. |
+| `--color-on-secondary` | `#1a1d29` | Text on `--color-secondary`. |
+| `--color-accent` | `#8a5a0f` | The **Insiders** category color (antique brass/gold). Used for: primary buttons (Search), links/hover-underline on actor names and tickers, active nav underline (Header, "Trade Tracker" tab), active category-tab underline + text for the Insiders tab, the expanded-row left border on Insiders rows, focus rings (`focus-visible:ring-accent/70`), the actor-filter chip text, and `--color-ring`. |
+| `--color-on-accent` | `#ffffff` | Text on accent-filled surfaces (e.g. the Search button). 5.92:1 contrast. |
+| `--color-background` | `#f7f2e7` | Page/body background — warm parchment/ivory, not gray or blue-tinted. |
+| `--color-foreground` | `#1a1d29` | Default body text color. 15:1 contrast on background. |
+| `--color-card` | `#fffdf7` | Card/panel/table/input background — a warm near-white, separated from the page mainly by `--shadow-sm` now, not just a hue nudge. |
+| `--color-card-foreground` | `#1a1d29` | Primary text inside cards (row titles, cell values). |
+| `--color-muted` | `#eee6d3` | Muted fill: hover backgrounds (`hover:bg-muted`), skeleton-loading blocks, expanded-row detail-panel background, progress-bar track background, empty-state icon tile background. |
+| `--color-muted-foreground` | `#5b5a52` | Secondary/label text: column headers in expanded rows, helper text, dates, placeholder text, inactive tab text. 6.8:1 on card. |
+| `--color-border` | `#e4dcc8` | Low-contrast hairline divider. Used only for **non-interactive** boundaries: row dividers, card outlines, header bottom border, tab-strip bottom border — where the fill-color change alongside it also signals the boundary, not the sole cue. |
+| `--color-border-strong` | `#7a7462` | Higher-contrast border reserved for **interactive control boundaries**: text inputs, date inputs, selects, buttons ("Refresh now", "Export CSV", "Load more", "View original filing"), the logo mark's icon frame. 4.59:1 on card. |
+| `--color-destructive` | `#a32424` | Error/negative semantic color: error banners, "Sell"/"Disposed" transaction badges, "[Exited]" position-change badge, sell-side of the buy/sell ratio bar. 7.28:1 on card. |
+| `--color-on-destructive` | `#ffffff` | Text on a filled destructive surface (not currently used filled anywhere inspected — destructive surfaces are tinted `/12`, not solid-filled). |
+| `--color-positive` | `#0f5c3c` | The **Congress** category color, and the general positive/buy semantic color. 7.89:1 on card. Used for: "Buy"/"Acquired" badges, "[New]" position-change badge, buy-side of the buy/sell ratio bar, "Verified" source label, active Congress tab underline+text, the expanded-row left border on Congress rows, the homepage "live" pulse dot. |
+| `--color-on-positive` | `#ffffff` | Text on a filled positive surface. |
+| `--color-warning` | `#7b640a` | Warning semantic color: "Unverified" source label, scrape-error indicator text, export-truncation notice. Deliberately spaced away from `--color-accent` and `--color-info` in hue so the three warm colors don't visually collide when they appear near each other. |
+| `--color-on-warning` | `#ffffff` | Text on a filled warning surface. |
+| `--color-info` | `#8a3b12` | The **Institutions** category color — deep terracotta, deliberately distinct from both `--color-accent` (Insiders) and `--color-positive` (Congress). 7.6:1 on card. Used for: active Institutions tab underline+text, the expanded-row left border on Institutions rows, "All changes/New/Exited/Changed" filter-tab active state on the Position Changes view. |
+| `--color-on-info` | `#ffffff` | Text on a filled info surface. |
+| `--color-ring` | `#8a5a0f` | Focus-ring color (same value as `--color-accent`); actual focus rings in components are hand-written as `focus-visible:ring-accent/70` or `/40` rather than referencing this token directly. |
+
+**The three data-category colors, at a glance:**
+
+| Category | Color token | Hex |
+|---|---|---|
+| Corporate Insiders | `--color-accent` | `#8a5a0f` (antique brass) |
+| Institutions (13F) | `--color-info` | `#8a3b12` (deep terracotta) |
+| Congress | `--color-positive` | `#0f5c3c` (deep forest green) |
+
+Each category's color is applied consistently across three surfaces wherever that category appears: the icon tile/frame, the active tab underline + tab text, and (on the ticker page and expanded table rows) a second signifier — the section icon color, or a 2px left border on an expanded row. This is the load-bearing pattern for category identity — there is no separate "category badge" component; the color itself is the signifier.
+
+### Shadows
+
+Defined as custom properties in the same `@theme inline` block as the color tokens, so they override Tailwind's default (gray-tinted) `shadow-sm`/`shadow-md`/`shadow-lg` utilities with warm-tinted equivalents (base `rgba(26, 23, 17, X)`, matching `--color-foreground`):
+
+- `--shadow-sm` — default resting state for cards, stat tiles, the table container, the homepage product/category cards.
+- `--shadow-md` — hover state on interactive cards (homepage product card, category tiles).
+- `--shadow-lg` — reserved; no true overlay/modal exists yet in the app.
+
+Individual table rows do **not** get their own shadow — a shadow on every row in a 50-row list would be noise, not polish. Depth on the table lives on the container only; row state (hover/expanded) is communicated by a background tint plus, when expanded, a 2px left border in the active category's color.
+
+## Typography
+
+Loaded in `frontend/app/layout.tsx` via `next/font/google`:
+
+- **Public Sans** (`Public_Sans`, weights 400/500/600/700) → CSS variable `--font-public-sans` → Tailwind `--font-sans`. The default UI/body font (buttons, labels, paragraph copy, nav, section headers, row primary text).
+- **Fira Code** (`Fira_Code`, weights 400/500/600/700) → CSS variable `--font-fira-code` → Tailwind `--font-mono`. Used everywhere data or machine-readable values are shown: table cell values (`renderCell`), tickers, CUSIPs, dollar amounts (`formatMeta`), dates inside rows, badge text, the "Verified · <source>" status lines, actor-filter chips, and sort-order selects showing column keys.
+- **Fraunces** (`Fraunces`, weights 500/600, variable) → CSS variable `--font-fraunces` → Tailwind `--font-display` (`font-display` utility class). Used **narrowly**: page-level `h1`s only — the homepage hero ("Stocks"), the Trade Tracker page title, and the ticker-detail page's ticker symbol. This is the one deliberate display-type anchor per page; everything else stays Public Sans/Fira Code. Do not spread Fraunces to smaller headings, buttons, or body copy — its whole job is being the single obviously-different element on the page.
+
+**Rule of thumb:** prose/labels/interactive text → sans (Public Sans, the default). Anything that is a literal data value, code, identifier, or tag → mono (Fira Code, applied explicitly via `font-mono`). A page's single `h1` → display serif (Fraunces, via `font-display`).
+
+Row primary text (an insider's name, a filer's name, a member's name) is `font-semibold` (600) — bumped from the previous system's `font-medium` (500) specifically to create visible hierarchy against the muted secondary/meta line beneath it, since "everything the same weight" was a named complaint about the prior system.
+
+## Component patterns
+
+**Badges/tags** (`frontend/app/lib/tradeFormat.tsx`, `badge()`): small filled pills — `rounded-full px-2 py-0.5 text-[11px] font-mono font-semibold uppercase tracking-wide`, background `bg-{tone}/12` with matching `text-{tone}`. Tone is one of `positive`/`negative`/`neutral` (`badgeTone()`), independent of the specific field. **Tailwind requires each tone's class names written out literally** (`bg-positive/12 text-positive`, etc.) rather than built via string interpolation — an interpolated class name isn't picked up by Tailwind's static scanner and silently produces no CSS. This pattern is reused in `PositionChanges.tsx`'s `changeBadge()`, which now calls `badge()` directly rather than duplicating the styling.
+
+**Category tabs** (`Header.tsx`, `trade-tracker/page.tsx`, `PositionChanges.tsx`): plain text buttons with a 2px bottom border (`border-b-2`) that is `border-transparent` when inactive and the category color when active (`border-accent text-accent`, `border-info text-info`, `border-positive text-positive`). No background fill, no rounded pill treatment — this is an underlined-text-tab pattern, consistently applied for primary nav, the three data-category tabs, and the secondary Institutions holdings/changes sub-tabs, and the position-change type filter.
+
+**Cards/panels**: `rounded-lg` (8px) with `border border-border bg-card shadow-sm` — the table container, stat tiles, `EntitySection` containers on the ticker page, and expanded-row detail panels. The homepage's single hero product card uses `rounded-xl` (12px) as the one larger showcase surface; category tiles and small icon frames use `rounded-md` (6px). Interactive cards (homepage product card, category tiles) go to `shadow-md` on hover, layered on top of (not replacing) the existing `hover:border-accent` color cue. Hover/interaction state on non-card surfaces (row backgrounds, buttons) is still communicated by border-color change or background tint, same as before.
+
+- The `overflow-hidden` + `rounded-lg` combination on list/table containers is what visually rounds the whole container's corners even though individual rows inside are flat rectangles — no per-row radius classes are needed.
+- The one `rounded-full` shape outside of badges is the small pulsing "live" status dot on the homepage (`animate-pulse-dot`) and the buy/sell ratio bar (track + fill) in `StatTiles.tsx`.
+
+**Inputs/buttons**: `rounded-md border border-border-strong bg-card`, `focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70` (or `/40` on text inputs) for focus state. Primary action (Search) is solid `bg-accent text-on-accent`; secondary actions (Refresh, Export, Load more, View original filing) are outlined (`border-border-strong`) with a muted hover fill and no fill at rest. Every pressable element additionally carries `active:scale-[0.97]` with a `duration-150 ease-out` transition for press feedback — this predates the Ledger visual pass and is unrelated to it; don't remove it while touching color/shape.
+
+**Row expand/collapse**: chevron rotates 180° on open (`transition-transform`), row background tints `bg-muted/40` when open, and — new in Ledger — the row also picks up a 2px left border (`border-l-2`) in the active category's color when expanded (`border-l-accent`/`border-l-info`/`border-l-positive`, mapped from the `category` prop in `TradeTable.tsx`'s `CATEGORY_BORDER_CLASS`). The border is `border-l-transparent` at rest so toggling doesn't shift layout. Detail panel below uses a `<dl>` grid of label/value pairs with mono values.
+
+**Status/verification language**: "Verified" (positive/green) vs "Unverified" (warning/amber) is a recurring, explicit primitive — shown both at the table-summary level and per-row, since some categories (Congress) mix sources of differing reliability.
+
+## What NOT to do (explicit anti-patterns)
+
+- **No decorative blur or glow.** Depth comes from the warm-tinted `shadow-sm`/`shadow-md` scale and background-value shifts, not blur/glow effects — no `blur-*` or `backdrop-*` class exists anywhere in `frontend/app`.
+- **No per-row shadows in the dense table.** A shadow on every row in a long list is noise; the table container carries `shadow-sm`, individual rows use a background tint plus (when expanded) a category-colored left border instead.
+- **No cool grays or blue-tinted neutrals.** Every neutral in the palette (background, card, muted, borders) is warm (parchment/ivory-leaning), not gray or blue-gray — that shift is a deliberate, load-bearing part of what makes this read as "financial journal" rather than "generic SaaS admin panel."
+- **No near-black background / no saturated purple / no neon-on-dark.** The whole palette stays light (`--color-background: #f7f2e7`); there is no dark theme defined at all (`data-theme="light"` is hardcoded).
+- **No filled category pills for tabs.** Category identity is still carried by an underline + text color on a plain button, not a colored background pill — badges got pills in this pass, tabs did not.
+- **Fraunces stays confined to page-level `h1`s.** Don't reach for it for section headers, card titles, or body copy — its value is being the one obvious anchor per page; using it more broadly would flatten that contrast back out.
+- **Motion is restrained and respects `prefers-reduced-motion`.** The two decorative animations (`animate-fade-up` row/section entrance, `animate-pulse-dot` live indicator) are explicitly zeroed out under `prefers-reduced-motion: reduce` in `globals.css` — but scoped narrowly to those two classes rather than a blanket `*` override, so functional transitions (hover, focus rings, the expand-caret rotation, press-feedback scale) still communicate state changes for users who need reduced motion.
+
+## Accessibility notes
+
+- **`--color-border` vs `--color-border-strong` is a deliberate, documented contrast split**: `--color-border` (#e4dcc8) is a low-contrast hairline used only for non-interactive dividers (row separators, card outlines) where an adjacent fill-color change also signals the boundary. `--color-border-strong` (#7a7462) is reserved for interactive control boundaries — inputs, selects, buttons — and clears **4.59:1** contrast against the card background, above the WCAG 3:1 minimum for UI-component boundaries that are the *sole* visual cue for "this is a control."
+- **Text pairings clear 4.5:1 or better**: body text (`--color-foreground` on `--color-background`) is ~15:1; `--color-muted-foreground` on card is ~6.8:1; the three category colors (`--color-accent`, `--color-info`, `--color-positive`) each clear 5.3–7.9:1 against both card and background surfaces.
+- **Text-opacity utilities need contrast-checking before use, not assumed safe.** The values shipped today use **`/85`** as the floor for opacity-reduced muted text (`text-muted-foreground/85`, used for empty-cell placeholders `—` and secondary disclaimers). Treat `/85` as the practical safe floor for muted-foreground-on-card text opacity; do not reintroduce lower opacity values on text without re-checking contrast. (Non-text uses of low opacity — badge fills at `/12`, `bg-warning/10`/`border-destructive/40` for banner fills/outlines, or the `/28` gradient stop in the decorative hero SVG — are a different case and aren't subject to the same text-contrast rule.)

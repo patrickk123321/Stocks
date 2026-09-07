@@ -1,39 +1,43 @@
 @import "tailwindcss";
 
-/* "EDGAR Register" — a light, federal-filing-system palette replacing the
-   prior dark/purple theme. Every pairing below is contrast-verified (WCAG
-   relative luminance): text pairings clear 4.5:1, --color-border-strong
-   (used only on interactive control boundaries — inputs, selects) clears
-   3:1; --color-border stays a plain low-contrast hairline, used only for
-   card/row dividers where the fill-color change also signals the boundary,
-   not as the sole cue for an interactive element. */
+/* "Ledger" — a warm ivory/parchment, ink-navy, antique-brass palette
+   evoking a private bank statement or financial journal, replacing the
+   prior flat "EDGAR Register" federal-filing theme. Every pairing below is
+   contrast-verified (WCAG relative luminance): text pairings clear 4.5:1,
+   --color-border-strong (used only on interactive control boundaries —
+   inputs, selects) clears 3:1; --color-border stays a plain low-contrast
+   hairline, used only for card/row dividers where the fill-color change
+   also signals the boundary, not as the sole cue for an interactive
+   element. --color-warning is deliberately spaced away from
+   --color-accent and --color-info in hue so the three warm colors don't
+   visually collide when they appear near each other. */
 :root {
-  --color-primary: #16181d;
+  --color-primary: #1a1d29;
   --color-on-primary: #ffffff;
-  --color-secondary: #eef0f2;
-  --color-on-secondary: #16181d;
-  --color-accent: #1a4480;
+  --color-secondary: #f1ead9;
+  --color-on-secondary: #1a1d29;
+  --color-accent: #8a5a0f;
   --color-on-accent: #ffffff;
-  --color-background: #f4f5f7;
-  --color-foreground: #16181d;
-  --color-card: #fbfbfa;
-  --color-card-foreground: #16181d;
-  --color-muted: #e8eaed;
-  --color-muted-foreground: #4b5563;
-  --color-border: #d6d9df;
-  --color-border-strong: #818a9b;
-  --color-destructive: #b91c1c;
+  --color-background: #f7f2e7;
+  --color-foreground: #1a1d29;
+  --color-card: #fffdf7;
+  --color-card-foreground: #1a1d29;
+  --color-muted: #eee6d3;
+  --color-muted-foreground: #5b5a52;
+  --color-border: #e4dcc8;
+  --color-border-strong: #7a7462;
+  --color-destructive: #a32424;
   --color-on-destructive: #ffffff;
-  --color-positive: #166534;
+  --color-positive: #0f5c3c;
   --color-on-positive: #ffffff;
-  --color-warning: #92400e;
+  --color-warning: #7b640a;
   --color-on-warning: #ffffff;
   /* Institutions' category color — distinct from --color-accent (Insiders)
-     and --color-positive (Congress); a muted federal-document-stamp brick
-     red-brown, not a decorative choice. */
-  --color-info: #9a3412;
+     and --color-positive (Congress); a deep terracotta, not a decorative
+     choice. */
+  --color-info: #8a3b12;
   --color-on-info: #ffffff;
-  --color-ring: #1a4480;
+  --color-ring: #8a5a0f;
 }
 
 @theme inline {
@@ -62,6 +66,13 @@
   --color-ring: var(--color-ring);
   --font-sans: var(--font-public-sans);
   --font-mono: var(--font-fira-code);
+  --font-display: var(--font-fraunces);
+  /* Warm-tinted shadows (base rgba(26,23,17,X), matching --color-foreground)
+     override Tailwind's default gray shadow scale so shadow-sm/md/lg read as
+     part of this palette instead of generic Material-style gray elevation. */
+  --shadow-sm: 0 1px 3px rgba(26, 23, 17, 0.08), 0 1px 2px rgba(26, 23, 17, 0.04);
+  --shadow-md: 0 4px 10px rgba(26, 23, 17, 0.08), 0 2px 4px rgba(26, 23, 17, 0.05);
+  --shadow-lg: 0 12px 24px rgba(26, 23, 17, 0.1), 0 4px 8px rgba(26, 23, 17, 0.06);
 }
 
 body {

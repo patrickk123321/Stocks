@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fira_Code, Public_Sans } from "next/font/google";
+import { Fira_Code, Fraunces, Public_Sans } from "next/font/google";
 import Header from "./components/Header";
 import "./globals.css";
 
@@ -15,6 +15,14 @@ const firaCode = Fira_Code({
   weight: ["400", "500", "600", "700"],
 });
 
+// Used narrowly for page-level h1s only (see DESIGN.md) — the one deliberate
+// display-type anchor per page, everything else stays Public Sans/Fira Code.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  weight: ["500", "600"],
+});
+
 export const metadata: Metadata = {
   title: {
     template: "%s · Stocks",
@@ -28,7 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       data-theme="light"
-      className={`${publicSans.variable} ${firaCode.variable} h-full antialiased`}
+      className={`${publicSans.variable} ${firaCode.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <Header />

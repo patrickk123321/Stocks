@@ -3,7 +3,7 @@
 import { ArrowSquareOut, WarningCircle } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { BackendUnreachableError, PositionChangeType, fetchPositionChanges } from "../lib/api";
-import { formatMeta } from "../lib/tradeFormat";
+import { badge, formatMeta } from "../lib/tradeFormat";
 
 const FILTERS: { key: PositionChangeType | "ALL"; label: string }[] = [
   { key: "ALL", label: "All changes" },
@@ -16,19 +16,10 @@ const PAGE_SIZE = 50;
 const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70";
 
 function changeBadge(type: string, pctChange: number | null) {
-  if (type === "NEW") {
-    return <span className="font-mono text-xs font-semibold uppercase tracking-wide text-positive">[New]</span>;
-  }
-  if (type === "EXITED") {
-    return <span className="font-mono text-xs font-semibold uppercase tracking-wide text-destructive">[Exited]</span>;
-  }
+  if (type === "NEW") return badge("New", "positive");
+  if (type === "EXITED") return badge("Exited", "negative");
   const up = (pctChange ?? 0) > 0;
-  return (
-    <span className={`font-mono text-xs font-semibold uppercase tracking-wide ${up ? "text-positive" : "text-destructive"}`}>
-      [{up ? "+" : ""}
-      {pctChange}%]
-    </span>
-  );
+  return badge(`${up ? "+" : ""}${pctChange}%`, up ? "positive" : "negative");
 }
 
 export default function PositionChanges() {
@@ -79,7 +70,7 @@ export default function PositionChanges() {
         reporting periods on file before it can show up here.
       </p>
 
-      <div className="flex flex-wrap border border-border bg-card">
+      <div className="flex flex-wrap rounded-md border border-border bg-card">
         {FILTERS.map((f) => (
           <button
             key={f.key}
@@ -100,23 +91,26 @@ export default function PositionChanges() {
       {error && (
         <div
           role="alert"
-          className="flex items-center gap-2 border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           <WarningCircle size={16} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="overflow-hidden border border-border bg-card" role={rows.length > 0 ? "list" : undefined}>
+      <div className="flex flex-col gap-3" role={rows.length > 0 ? "list" : undefined}>
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
-              <div className="h-4 w-48 animate-pulse bg-muted" />
-              <div className="h-4 w-20 animate-pulse bg-muted" />
+            <div
+              key={i}
+              className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-5 py-4 shadow-sm"
+            >
+              <div className="h-4 w-48 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-20 animate-pulse rounded bg-muted" />
             </div>
           ))
         ) : rows.length === 0 && !error ? (
-          <p className="px-4 py-16 text-center text-sm leading-relaxed text-muted-foreground">
+          <p className="rounded-lg border border-border bg-card px-4 py-16 text-center text-sm leading-relaxed text-muted-foreground shadow-sm">
             No position changes detected yet. This needs at least two 13F filing periods on file for the same institution — check
             back after the next quarterly filing cycle, or once more historical data has been backfilled.
           </p>
@@ -127,12 +121,12 @@ export default function PositionChanges() {
               <div
                 key={i}
                 role="listitem"
-                className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}
+                className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-5 py-4 shadow-sm"
               >
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3.5">
                   {changeBadge(String(row.change_type), row.pct_change as number | null)}
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-card-foreground">{String(row.filer_name ?? "Unknown")}</p>
+                    <p className="truncate text-sm font-semibold text-card-foreground">{String(row.filer_name ?? "Unknown")}</p>
                     <p className="truncate font-mono text-xs text-muted-foreground">
                       {String(row.issuer_name ?? "")} · {String(row.cusip ?? "")}
                     </p>
@@ -152,7 +146,7 @@ export default function PositionChanges() {
                       rel="noopener noreferrer"
                       title="View filing"
                       aria-label="View filing"
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${FOCUS_RING}`}
                     >
                       <ArrowSquareOut size={14} aria-hidden="true" />
                     </a>
@@ -168,7 +162,7 @@ export default function PositionChanges() {
         <button
           onClick={loadMore}
           disabled={loadingMore}
-          className={`cursor-pointer self-center border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+          className={`cursor-pointer self-center rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
         >
           {loadingMore ? "Loading…" : `Load more (${rows.length} of ${total.toLocaleString()})`}
         </button>

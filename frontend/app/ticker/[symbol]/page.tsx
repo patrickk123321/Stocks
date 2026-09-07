@@ -32,17 +32,17 @@ function EntitySection({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <span className={`flex h-8 w-8 items-center justify-center border border-border-strong ${accentClass}`}>
+        <span className={`flex h-8 w-8 items-center justify-center rounded-md border border-border-strong ${accentClass}`}>
           <Icon size={16} aria-hidden="true" />
         </span>
         <h2 className="font-semibold text-foreground">{title}</h2>
       </div>
-      <div className="overflow-hidden border border-border bg-card">
+      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
-              <div className="h-4 w-40 animate-pulse bg-muted" />
-              <div className="h-4 w-24 animate-pulse bg-muted" />
+            <div key={i} className={`flex items-center justify-between gap-4 px-5 py-4 ${i > 0 ? "border-t border-border" : ""}`}>
+              <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-24 animate-pulse rounded bg-muted" />
             </div>
           ))
         ) : error ? (
@@ -117,7 +117,7 @@ export default function TickerPage() {
             <ArrowLeft size={16} aria-hidden="true" />
             Trade Tracker
           </Link>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">{symbol}</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{symbol}</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Every tracked insider and congressional trade in {symbol}, plus a best-effort match on institutional 13F holdings.
           </p>
@@ -134,11 +134,11 @@ export default function TickerPage() {
           renderRow={(row, i) => {
             const code = String(row.acquired_disposed ?? "");
             return (
-              <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
-                <div className="flex min-w-0 items-center gap-3">
+              <div key={i} className={`flex items-center justify-between gap-4 px-5 py-4 ${i > 0 ? "border-t border-border" : ""}`}>
+                <div className="flex min-w-0 items-center gap-3.5">
                   {code && badge(badgeLabel("acquired_disposed", code), badgeTone("acquired_disposed", code), badgeTitle("acquired_disposed", code))}
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-card-foreground">{String(row.owner_name ?? "Unknown")}</p>
+                    <p className="truncate text-sm font-semibold text-card-foreground">{String(row.owner_name ?? "Unknown")}</p>
                     <p className="truncate text-xs text-muted-foreground">{String(row.officer_title ?? "")}</p>
                   </div>
                 </div>
@@ -162,11 +162,11 @@ export default function TickerPage() {
           renderRow={(row, i) => {
             const type = String(row.transaction_type ?? "");
             return (
-              <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
-                <div className="flex min-w-0 items-center gap-3">
+              <div key={i} className={`flex items-center justify-between gap-4 px-5 py-4 ${i > 0 ? "border-t border-border" : ""}`}>
+                <div className="flex min-w-0 items-center gap-3.5">
                   {type && badge(badgeLabel("transaction_type", type), badgeTone("transaction_type", type), badgeTitle("transaction_type", type))}
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-card-foreground">{String(row.member_name ?? "Unknown")}</p>
+                    <p className="truncate text-sm font-semibold text-card-foreground">{String(row.member_name ?? "Unknown")}</p>
                     <p className="truncate text-xs text-muted-foreground">{String(row.state_district ?? "")}</p>
                   </div>
                 </div>
@@ -192,9 +192,9 @@ export default function TickerPage() {
               : `13F filings only report CUSIP, not ticker — institutional matching needs a resolved company name from an insider filing, which isn't available for ${symbol} yet.`
           }
           renderRow={(row, i) => (
-            <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
+            <div key={i} className={`flex items-center justify-between gap-4 px-5 py-4 ${i > 0 ? "border-t border-border" : ""}`}>
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-card-foreground">{String(row.filer_name ?? "Unknown")}</p>
+                <p className="truncate text-sm font-semibold text-card-foreground">{String(row.filer_name ?? "Unknown")}</p>
                 <p className="truncate font-mono text-xs text-muted-foreground">{String(row.cusip ?? "")}</p>
               </div>
               <div className="shrink-0 text-right">

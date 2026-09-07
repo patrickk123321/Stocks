@@ -18,7 +18,7 @@ export default function Header() {
           href="/"
           className="flex items-center gap-2 transition-transform duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
         >
-          <span className="flex h-7 w-7 items-center justify-center border border-border-strong text-accent">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md border border-border-strong text-accent">
             <ChartLineUp size={16} weight="bold" aria-hidden="true" />
           </span>
           <span className="text-sm font-semibold tracking-tight text-foreground">Stocks</span>
