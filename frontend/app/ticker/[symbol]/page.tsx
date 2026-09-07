@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { fetchTrades } from "../../lib/api";
-import { badge, badgeLabel, badgeTone, formatMeta } from "../../lib/tradeFormat";
+import { badge, badgeLabel, badgeTitle, badgeTone, formatMeta } from "../../lib/tradeFormat";
 
 type Row = Record<string, unknown>;
 
@@ -136,7 +136,7 @@ export default function TickerPage() {
             return (
               <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
                 <div className="flex min-w-0 items-center gap-3">
-                  {code && badge(badgeLabel("acquired_disposed", code), badgeTone("acquired_disposed", code))}
+                  {code && badge(badgeLabel("acquired_disposed", code), badgeTone("acquired_disposed", code), badgeTitle("acquired_disposed", code))}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-card-foreground">{String(row.owner_name ?? "Unknown")}</p>
                     <p className="truncate text-xs text-muted-foreground">{String(row.officer_title ?? "")}</p>
@@ -164,7 +164,7 @@ export default function TickerPage() {
             return (
               <div key={i} className={`flex items-center justify-between gap-4 px-4 py-3.5 ${i > 0 ? "border-t border-border" : ""}`}>
                 <div className="flex min-w-0 items-center gap-3">
-                  {type && badge(badgeLabel("transaction_type", type), badgeTone("transaction_type", type))}
+                  {type && badge(badgeLabel("transaction_type", type), badgeTone("transaction_type", type), badgeTitle("transaction_type", type))}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-card-foreground">{String(row.member_name ?? "Unknown")}</p>
                     <p className="truncate text-xs text-muted-foreground">{String(row.state_district ?? "")}</p>

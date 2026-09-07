@@ -1,4 +1,4 @@
-import { ChartLineUp } from "@phosphor-icons/react/ssr";
+import { Bank, Buildings, ChartLineUp, UserCircle } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 
 const PRODUCTS = [
@@ -8,6 +8,30 @@ const PRODUCTS = [
     icon: ChartLineUp,
     title: "Trade Tracker",
     description: "Corporate insider trades, institutional 13F filings, and congressional trades in one place.",
+  },
+];
+
+const CATEGORIES = [
+  {
+    key: "insiders",
+    icon: UserCircle,
+    colorClass: "text-accent",
+    title: "Corporate Insiders",
+    description: "SEC Form 4 filings, read directly from EDGAR's structured feed.",
+  },
+  {
+    key: "institutions",
+    icon: Buildings,
+    colorClass: "text-info",
+    title: "Institutions (13F)",
+    description: "Quarterly 13F-HR holdings for every tracked institutional filer.",
+  },
+  {
+    key: "congress",
+    icon: Bank,
+    colorClass: "text-positive",
+    title: "Congress",
+    description: "House Clerk PDFs and Senate disclosures, House and Senate alike.",
   },
 ];
 
@@ -47,11 +71,8 @@ export default function Home() {
                 style={{ animationDelay: `${150 + i * 75}ms` }}
               >
                 <div className="flex h-full cursor-pointer flex-col gap-5 border border-border bg-card p-6 transition-colors hover:border-accent">
-                  <div className="flex items-center justify-between">
-                    <div className="flex h-11 w-11 items-center justify-center border border-border-strong text-accent">
-                      <Icon size={22} weight="regular" aria-hidden="true" />
-                    </div>
-                    <span className="font-mono text-xs font-medium uppercase tracking-wide text-positive">[Live]</span>
+                  <div className="flex h-11 w-11 items-center justify-center border border-border-strong text-accent">
+                    <Icon size={22} weight="regular" aria-hidden="true" />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <h2 className="font-semibold text-card-foreground">{product.title}</h2>
@@ -61,6 +82,26 @@ export default function Home() {
               </Link>
             );
           })}
+        </section>
+
+        <section className="flex flex-col gap-5 border-t border-border pt-12">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">What&apos;s tracked</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {CATEGORIES.map((category) => {
+              const Icon = category.icon;
+              return (
+                <div key={category.key} className="flex flex-col gap-3 border border-border bg-card p-5">
+                  <div className={`flex h-9 w-9 items-center justify-center border border-border-strong ${category.colorClass}`}>
+                    <Icon size={16} weight="regular" aria-hidden="true" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-sm font-semibold text-card-foreground">{category.title}</h3>
+                    <p className="text-xs leading-relaxed text-muted-foreground">{category.description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </section>
       </main>
     </div>

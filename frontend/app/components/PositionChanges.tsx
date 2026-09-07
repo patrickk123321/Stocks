@@ -84,7 +84,7 @@ export default function PositionChanges() {
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`cursor-pointer border-b-2 px-3 py-1.5 text-xs font-medium transition-colors ${FOCUS_RING} ${
+            className={`cursor-pointer border-b-2 px-3 py-1.5 text-xs font-medium transition-[color,border-color,transform] duration-150 ease-out active:scale-[0.97] ${FOCUS_RING} ${
               filter === f.key ? "border-info text-info" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -102,7 +102,7 @@ export default function PositionChanges() {
           role="alert"
           className="flex items-center gap-2 border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
-          <WarningCircle size={18} aria-hidden="true" />
+          <WarningCircle size={16} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
@@ -168,7 +168,7 @@ export default function PositionChanges() {
         <button
           onClick={loadMore}
           disabled={loadingMore}
-          className={`cursor-pointer self-center border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+          className={`cursor-pointer self-center border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
         >
           {loadingMore ? "Loading…" : `Load more (${rows.length} of ${total.toLocaleString()})`}
         </button>

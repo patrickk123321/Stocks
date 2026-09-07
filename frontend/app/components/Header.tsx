@@ -16,7 +16,7 @@ export default function Header() {
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-3">
         <Link
           href="/"
-          className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+          className="flex items-center gap-2 transition-transform duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
         >
           <span className="flex h-7 w-7 items-center justify-center border border-border-strong text-accent">
             <ChartLineUp size={16} weight="bold" aria-hidden="true" />
@@ -33,7 +33,7 @@ export default function Header() {
               <Link
                 key={item.key}
                 href={item.href}
-                className={`flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 ${
+                className={`flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-[color,border-color,transform] duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 ${
                   active ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >

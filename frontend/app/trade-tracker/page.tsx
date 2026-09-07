@@ -1,10 +1,15 @@
 "use client";
 
 import { Bank, Buildings, UserCircle } from "@phosphor-icons/react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import PositionChanges from "../components/PositionChanges";
 import TradeTable, { SummaryConfig } from "../components/TradeTable";
 import { Category } from "../lib/api";
+
+function isCategory(value: string | null): value is Category {
+  return value === "insiders" || value === "institutions" || value === "congress";
+}
 
 const TABS: { key: Category; label: string; icon: typeof UserCircle; active: string; inactive: string }[] = [
   {
@@ -134,8 +139,33 @@ const SUMMARY: Record<Category, SummaryConfig> = {
 type InstitutionsView = "holdings" | "changes";
 
 export default function TradeTrackerPage() {
-  const [activeTab, setActiveTab] = useState<Category>("insiders");
-  const [institutionsView, setInstitutionsView] = useState<InstitutionsView>("holdings");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<Category>(isCategory(tabParam) ? tabParam : "insiders");
+  const [institutionsView, setInstitutionsView] = useState<InstitutionsView>(
+    searchParams.get("view") === "changes" ? "changes" : "holdings",
+  );
+
+  // Switching the primary category tab is a fresh start for that category — this
+  // table's own per-category filter params (see TradeTable's `${category}_*` keys)
+  // are untouched, so returning to a tab later restores whatever was last searched
+  // there, without this handler needing to know about those keys at all.
+  const selectTab = (tab: Category) => {
+    setActiveTab(tab);
+    setInstitutionsView("holdings");
+    router.replace(tab === "insiders" ? pathname : `${pathname}?tab=${tab}`, { scroll: false });
+  };
+
+  const selectInstitutionsView = (view: InstitutionsView) => {
+    setInstitutionsView(view);
+    const params = new URLSearchParams();
+    params.set("tab", "institutions");
+    if (view === "changes") params.set("view", "changes");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   return (
     <div className="flex flex-1 flex-col">
@@ -154,7 +184,7 @@ export default function TradeTrackerPage() {
             return (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => selectTab(tab.key)}
                 className={`flex cursor-pointer items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 ${
                   active ? tab.active : tab.inactive
                 }`}
@@ -171,7 +201,7 @@ export default function TradeTrackerPage() {
             {(["holdings", "changes"] as const).map((view) => (
               <button
                 key={view}
-                onClick={() => setInstitutionsView(view)}
+                onClick={() => selectInstitutionsView(view)}
                 className={`cursor-pointer border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 ${
                   institutionsView === view
                     ? "border-info text-info"
