@@ -3,7 +3,7 @@ interface PeloSiMarkProps {
   className?: string;
 }
 
-// The Pelo$i brand mark — an original caricature (not traced from any reference image)
+// The ToTheMoon brand mark — an original caricature (not traced from any reference image)
 // of a suited, sunglassed, blonde-haired figure riding a tilted rocket, one arm raised.
 // Satirical in the same spirit as the site's name; a fresh illustration, not a copy of
 // any existing artwork. This is the one component in the app whose colors are NOT

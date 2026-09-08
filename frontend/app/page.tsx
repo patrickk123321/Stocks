@@ -1,7 +1,7 @@
 import { ChartLineUp } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import CandlestickHero from "./components/CandlestickHero";
-import PeloSiMark from "./components/PeloSiMark";
+import LogoIntro from "./components/LogoIntro";
 
 export default function Home() {
   return (
@@ -9,12 +9,7 @@ export default function Home() {
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-6 py-6 sm:py-8">
         <section className="grid flex-1 grid-cols-1 items-stretch gap-8 sm:grid-cols-[2fr_3fr] sm:gap-10">
           <div className="relative -left-6 flex flex-1 items-stretch gap-4 pt-2 animate-fade-up">
-            <PeloSiMark size={160} className="-ml-2 shrink-0 self-start" />
-
-            <div className="flex flex-1 flex-col gap-6">
-              <h1 className="text-center font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-                Pelo$i
-              </h1>
+            <LogoIntro>
               <p className="mx-auto max-w-md text-center text-base leading-relaxed text-muted-foreground">
                 A personal investing platform: track corporate insiders, institutional investors, and Congress in
                 one place.
@@ -45,7 +40,7 @@ export default function Home() {
                   </div>
                 </Link>
               </div>
-            </div>
+            </LogoIntro>
           </div>
 
           <div className="relative min-h-[320px] w-full">

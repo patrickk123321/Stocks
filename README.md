@@ -1,4 +1,4 @@
-# Pelo$i
+# ToTheMoon
 
 A personal investing platform: track corporate insider trades (SEC Form 4), institutional 13F filings, and congressional trades, shown as three searchable, filterable categories with a dashboard of the most recent activity.
 
