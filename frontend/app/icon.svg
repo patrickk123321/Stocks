@@ -1,0 +1,28 @@
+<svg width="32" height="32" viewBox="-15 -10 130 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pelo$i favicon. Mirrors PeloSiMark.tsx exactly (same artwork, same hardcoded
+       colors — this component already isn't token-based, see DESIGN.md's brand-mark
+       exception note, so there's no var()-vs-static split to worry about here). -->
+  <g transform="rotate(28 50 50)">
+    <polygon points="44,66 50,88 56,66" fill="#f57c00" />
+    <polygon points="46.5,66 50,79 53.5,66" fill="#ffd54f" />
+    <polygon points="40,52 25,69 40,69" fill="#c62828" />
+    <polygon points="60,52 75,69 60,69" fill="#c62828" />
+    <rect x="38" y="24" width="24" height="42" rx="10" fill="#f5f5f0" stroke="#1c2b45" stroke-width="1.5" />
+    <circle cx="50" cy="40" r="7" fill="#2a5ca8" />
+    <circle cx="50" cy="40" r="5" fill="#bcd9f7" />
+    <polygon points="50,6 61,26 39,26" fill="#c62828" />
+    <g stroke="#1c2b45" stroke-width="6" stroke-linecap="round" fill="none">
+      <line x1="50" y1="34" x2="40" y2="47" />
+      <line x1="50" y1="34" x2="60" y2="47" />
+    </g>
+    <line x1="46" y1="22" x2="38" y2="31" stroke="#1c2b45" stroke-width="5" stroke-linecap="round" />
+    <line x1="54" y1="20" x2="67" y2="5" stroke="#1c2b45" stroke-width="5" stroke-linecap="round" />
+    <circle cx="67" cy="5" r="3" fill="#e0a878" />
+    <rect x="43" y="19" width="14" height="17" rx="4" fill="#1c2b45" />
+    <rect x="48.5" y="19" width="3" height="11" fill="#f5f5f0" />
+    <polygon points="48.5,19 51.5,19 50,23" fill="#c62828" />
+    <circle cx="50" cy="12" r="8" fill="#e0a878" />
+    <ellipse cx="50" cy="7" rx="9" ry="6" fill="#e8c460" />
+    <rect x="43.5" y="11" width="13" height="4" rx="2" fill="#111111" />
+  </g>
+</svg>

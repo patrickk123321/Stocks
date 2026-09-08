@@ -12,9 +12,9 @@ if not SEC_EDGAR_CONTACT_EMAIL:
         "requires a real contact email in the User-Agent header of automated requests."
     )
 
-SEC_USER_AGENT = f"Stocks personal project ({SEC_EDGAR_CONTACT_EMAIL})"
+SEC_USER_AGENT = f"PeloSi personal project ({SEC_EDGAR_CONTACT_EMAIL})"
 
-HOUSE_CLERK_USER_AGENT = "Mozilla/5.0 (compatible; StocksPersonalProject/1.0)"
+HOUSE_CLERK_USER_AGENT = "Mozilla/5.0 (compatible; PeloSiPersonalProject/1.0)"
 
 DB_PATH = os.getenv("STOCKS_DB_PATH", "stocks.db")
 

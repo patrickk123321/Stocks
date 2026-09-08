@@ -11,7 +11,7 @@ from app.scheduler import backfill_if_empty, start_scheduler
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Stocks API")
+app = FastAPI(title="Pelo$i API")
 
 app.add_middleware(
     CORSMiddleware,

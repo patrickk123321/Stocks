@@ -171,7 +171,7 @@ export default function TradeTrackerPage() {
     <div className="flex flex-1 flex-col">
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-10">
         <div className="flex flex-col gap-1">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Trade Tracker</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Trades</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Corporate insider trades, institutional 13F holdings, and congressional trades — refreshed daily at 9am.
           </p>

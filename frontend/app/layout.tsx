@@ -25,10 +25,10 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: {
-    template: "%s · Stocks",
-    default: "Stocks",
+    template: "%s · Pelo$i",
+    default: "Pelo$i",
   },
-  description: "Personal investing platform: corporate insider, institutional, and congressional trade tracking.",
+  description: "Pelo$i — track corporate insider, institutional, and congressional trades in one place.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

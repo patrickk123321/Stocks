@@ -3,9 +3,10 @@
 import { ChartLineUp } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import PeloSiMark from "./PeloSiMark";
 
 const NAV_ITEMS = [
-  { key: "trade-tracker", href: "/trade-tracker", label: "Trade Tracker", icon: ChartLineUp },
+  { key: "trade-tracker", href: "/trade-tracker", label: "Trades", icon: ChartLineUp },
 ] as const;
 
 export default function Header() {
@@ -18,10 +19,10 @@ export default function Header() {
           href="/"
           className="flex items-center gap-2 transition-transform duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-md border border-border-strong text-accent">
-            <ChartLineUp size={16} weight="bold" aria-hidden="true" />
+          <span className="flex h-7 w-7 items-center justify-center rounded-md border border-border-strong">
+            <PeloSiMark size={16} />
           </span>
-          <span className="text-sm font-semibold tracking-tight text-foreground">Stocks</span>
+          <span className="text-sm font-semibold tracking-tight text-foreground">Home</span>
         </Link>
 
         <nav className="flex items-center gap-1">
