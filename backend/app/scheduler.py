@@ -1,6 +1,7 @@
 import logging
 import time
 from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -11,6 +12,13 @@ from app.sources.edgar_13f import refresh_13f
 from app.sources.edgar_form4 import refresh_form4
 
 logger = logging.getLogger("stocks.scheduler")
+
+# US/Canadian Eastern Time — both follow the same UTC offset and DST rules, so
+# one zone covers either reading of "9am/9pm Eastern". CronTrigger fields below
+# are wall-clock Eastern hours; without this, APScheduler falls back to the
+# host machine's local timezone, which on Railway is UTC — silently shifting
+# "9:00am/9:00pm Eastern" to 9:00am/9:00pm UTC (4-5 hours early) instead.
+EASTERN = ZoneInfo("America/New_York")
 
 DAILY_LOOKBACK_DAYS = 7
 
@@ -55,10 +63,10 @@ def backfill_if_empty() -> None:
 
 def run_insider_refresh() -> None:
     """Insider (Form 4) trades get their own twice-daily job (9:00am and
-    4:30pm) — filings land throughout the trading day, so a single once-daily
-    check misses same-day activity for longer than necessary. Institutions
-    (13F, quarterly data) and congress stay on the once-daily job below, where
-    twice-daily makes no practical difference."""
+    9:00pm Eastern) — filings land throughout the trading day, so a single
+    once-daily check misses same-day activity for longer than necessary.
+    Institutions (13F, quarterly data) and congress stay on the once-daily job
+    below, where twice-daily makes no practical difference."""
     _run_refresh("insiders", refresh_form4, count=200)
 
 
@@ -69,27 +77,27 @@ def run_daily_refresh() -> None:
 
 
 def start_scheduler() -> BackgroundScheduler:
-    scheduler = BackgroundScheduler()
+    scheduler = BackgroundScheduler(timezone=EASTERN)
     scheduler.add_job(
         run_insider_refresh,
-        CronTrigger(hour=9, minute=0),
+        CronTrigger(hour=9, minute=0, timezone=EASTERN),
         id="insider_refresh_am",
         replace_existing=True,
     )
     scheduler.add_job(
         run_insider_refresh,
-        # After the US market's 4:00pm close, to catch same-day filings
+        # Evening check, well after market close, to catch same-day filings
         # without waiting until the next morning.
-        CronTrigger(hour=16, minute=30),
+        CronTrigger(hour=21, minute=0, timezone=EASTERN),
         id="insider_refresh_pm",
         replace_existing=True,
     )
     scheduler.add_job(
         run_daily_refresh,
-        CronTrigger(hour=9, minute=0),
+        CronTrigger(hour=9, minute=0, timezone=EASTERN),
         id="daily_refresh",
         replace_existing=True,
     )
     scheduler.start()
-    logger.info("scheduler started: insider refresh at 09:00 and 16:30, institutions/congress refresh at 09:00")
+    logger.info("scheduler started (America/New_York): insider refresh at 09:00 and 21:00, institutions/congress refresh at 09:00")
     return scheduler

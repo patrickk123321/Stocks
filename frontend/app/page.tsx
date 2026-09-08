@@ -45,7 +45,7 @@ export default function Home() {
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-pulse-dot rounded-full bg-positive" />
               </span>
-              Insider trades refresh twice daily at 9:00 AM and 4:30 PM
+              Insider trades refresh twice daily at 9:00 AM and 9:00 PM Eastern
             </div>
             <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">Stocks</h1>
             <p className="max-w-md text-base leading-relaxed text-muted-foreground">
