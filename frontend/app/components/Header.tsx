@@ -14,7 +14,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-3">
+      <div className="mx-auto flex w-full max-w-[96rem] items-center justify-between px-6 py-3">
         <Link
           href="/"
           className="flex items-center gap-2 transition-transform duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"

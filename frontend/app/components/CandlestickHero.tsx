@@ -10,14 +10,22 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 const VIEW_H = 300;
 const BASELINE = 280;
 const STEP = 0.08;
-const CANDLE_WIDTH = 14;
 
-// Fixed per-candle spacing that does NOT get recompressed to fit a target width — the
-// viewBox grows to fit the candles (below), not the other way around. Widened from an
-// earlier 44px step (which made adding candles look "crammed in" rather than lengthening
-// the chart) back out to a genuinely roomier spacing.
-const STEP_X = 60;
-const MARGIN_X = 40;
+// Default/fallback candle spacing and margin before the container has been measured (also
+// what a failed measurement falls back to). The real spacing is derived at runtime from the
+// container's actual aspect ratio — see the measurement effect below — so the chart's
+// drawing genuinely fills its box instead of relying on a fixed guess.
+const DEFAULT_STEP_X = 72;
+const MARGIN_X = 48;
+const CANDLE_TO_STEP_RATIO = 16 / 72;
+
+// Bounds on how far the viewBox's aspect ratio is allowed to follow the container's real
+// aspect ratio. Deriving the viewBox to exactly match the container eliminates
+// `preserveAspectRatio` letterboxing by construction; the clamp only engages for genuinely
+// extreme container shapes, trading a little letterboxing there for readable candle spacing
+// instead of absurdly thin or fat candles.
+const MIN_ASPECT = 1.3;
+const MAX_ASPECT = 3.2;
 
 interface CandleData {
   x: number;
@@ -44,9 +52,7 @@ const RAW_CANDLES: Omit<CandleData, "x">[] = [
   { o: 148, c: 100, h: 90, l: 154 }, // up
   { o: 102, c: 4, h: 2, l: 108 }, // breakout — reaches almost to y=0, the very top of the chart
 ];
-const CANDLES: CandleData[] = RAW_CANDLES.map((c, i) => ({ ...c, x: MARGIN_X + i * STEP_X }));
-const VIEW_W = MARGIN_X * 2 + STEP_X * (CANDLES.length - 1);
-const BREAKOUT_INDEX = CANDLES.length - 1;
+const BREAKOUT_INDEX = RAW_CANDLES.length - 1;
 
 // Literal hex, matching --color-positive/--color-destructive in globals.css/DESIGN.md.
 const POSITIVE_HEX = "#0f5c3c";
@@ -109,28 +115,54 @@ export default function CandlestickHero({
 }: CandlestickHeroProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [breakoutTop, setBreakoutTop] = useState<number | null>(null);
+  const [dims, setDims] = useState({ stepX: DEFAULT_STEP_X, candleWidth: DEFAULT_STEP_X * CANDLE_TO_STEP_RATIO });
 
   useLayoutEffect(() => {
-    if (titleTargetScreenY == null || !svgRef.current) {
-      setBreakoutTop(null);
-      return;
-    }
-    const rect = svgRef.current.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
+    function measure() {
+      if (!svgRef.current) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
 
-    const scale = Math.min(rect.width / VIEW_W, rect.height / VIEW_H);
-    const renderedHeight = VIEW_H * scale;
-    const letterboxTop = rect.top + (rect.height - renderedHeight) / 2;
-    const internalY = (titleTargetScreenY - letterboxTop) / scale;
-    // Clamp to a sane range within the chart's own box so a measurement taken before
-    // layout has settled can't produce a broken (negative or off-chart) candle.
-    setBreakoutTop(Math.min(Math.max(internalY, 2), BASELINE - 20));
+      // Derive the viewBox's aspect ratio from the container's real rendered box (clamped
+      // to a sane range) so `preserveAspectRatio="xMidYMid meet"` produces no letterboxing
+      // in the common case — the drawing's own aspect ratio matches the box it's drawn into.
+      const rawAspect = rect.width / rect.height;
+      const clampedAspect = Math.min(Math.max(rawAspect, MIN_ASPECT), MAX_ASPECT);
+      const viewW = VIEW_H * clampedAspect;
+      const stepX = (viewW - MARGIN_X * 2) / (RAW_CANDLES.length - 1);
+      setDims({ stepX, candleWidth: stepX * CANDLE_TO_STEP_RATIO });
+
+      if (titleTargetScreenY == null) {
+        setBreakoutTop(null);
+        return;
+      }
+      const scale = Math.min(rect.width / viewW, rect.height / VIEW_H);
+      const renderedHeight = VIEW_H * scale;
+      const letterboxTop = rect.top + (rect.height - renderedHeight) / 2;
+      const internalY = (titleTargetScreenY - letterboxTop) / scale;
+      // Clamp to a sane range within the chart's own box so a measurement taken before
+      // layout has settled can't produce a broken (negative or off-chart) candle.
+      setBreakoutTop(Math.min(Math.max(internalY, 2), BASELINE - 20));
+    }
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   }, [titleTargetScreenY]);
 
+  const viewW = useMemo(() => MARGIN_X * 2 + dims.stepX * (RAW_CANDLES.length - 1), [dims.stepX]);
+
+  const candlesBase = useMemo(
+    () => RAW_CANDLES.map((c, i) => ({ ...c, x: MARGIN_X + i * dims.stepX })),
+    [dims.stepX]
+  );
+
   const candles = useMemo(() => {
-    if (breakoutTop == null) return CANDLES;
-    return CANDLES.map((c, i) => (i === BREAKOUT_INDEX ? { ...c, c: breakoutTop, h: Math.max(breakoutTop - 6, 0) } : c));
-  }, [breakoutTop]);
+    if (breakoutTop == null) return candlesBase;
+    return candlesBase.map((c, i) =>
+      i === BREAKOUT_INDEX ? { ...c, c: breakoutTop, h: Math.max(breakoutTop - 6, 0) } : c
+    );
+  }, [candlesBase, breakoutTop]);
 
   const closePoints = candles.map((c) => ({ x: c.x, y: c.c }));
   const trendLinePath = buildTrendPath(closePoints);
@@ -139,7 +171,7 @@ export default function CandlestickHero({
   return (
     <svg
       ref={svgRef}
-      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      viewBox={`0 0 ${viewW} ${VIEW_H}`}
       role="img"
       aria-label="Stylized candlestick chart trending upward"
       className="h-full w-full"
@@ -157,7 +189,7 @@ export default function CandlestickHero({
       </defs>
 
       {[60, 120, 180, 240].map((y) => (
-        <line key={y} x1="0" y1={y} x2={VIEW_W} y2={y} stroke="var(--color-border)" strokeWidth="1" opacity="0.5" />
+        <line key={y} x1="0" y1={y} x2={viewW} y2={y} stroke="var(--color-border)" strokeWidth="1" opacity="0.5" />
       ))}
 
       {mounted &&
@@ -193,8 +225,8 @@ export default function CandlestickHero({
                 transition={transition}
               />
               <motion.rect
-                x={candle.x - CANDLE_WIDTH / 2}
-                width={CANDLE_WIDTH}
+                x={candle.x - dims.candleWidth / 2}
+                width={dims.candleWidth}
                 fill={color}
                 initial={shouldAnimate ? { y: BASELINE, height: 0 } : false}
                 animate={{ y: top, height }}

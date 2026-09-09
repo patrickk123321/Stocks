@@ -60,6 +60,12 @@ export default function Home() {
   // size its breakout candle to actually reach it (see that component's own conversion of
   // this screen coordinate into its viewBox space).
   const [titleTargetScreenY, setTitleTargetScreenY] = useState<number | null>(null);
+  // The rocket's flight-in start point, expressed as an x/y offset from its own resting
+  // position (the same coordinate space LogoIntro's Framer Motion `x`/`y` already animate
+  // in) that lands it just outside the actual browser viewport's bottom-left corner —
+  // measured at runtime against #hero-rocket-rest rather than a fixed guess, so it starts
+  // from the real screen edge at any viewport size instead of a constant tuned for one.
+  const [flightOrigin, setFlightOrigin] = useState<{ x: number; y: number } | null>(null);
 
   useLayoutEffect(() => {
     function measure() {
@@ -85,6 +91,15 @@ export default function Home() {
         const rect = titleText.getBoundingClientRect();
         setTitleTargetScreenY(rect.top + rect.height / 2);
       }
+
+      const rocketRest = document.getElementById("hero-rocket-rest");
+      if (rocketRest) {
+        const rect = rocketRest.getBoundingClientRect();
+        setFlightOrigin({
+          x: -(rect.left + rect.width) - 60,
+          y: window.innerHeight - rect.top + 40,
+        });
+      }
     }
 
     measure();
@@ -96,21 +111,21 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 flex-col overflow-x-clip">
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-6 py-6 sm:py-8">
+      <main className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col px-6 py-3 sm:py-4">
         <section
-          className="grid flex-1 grid-cols-1 items-stretch gap-8 sm:grid-cols-[1fr_2fr] sm:gap-10"
+          className="grid flex-1 grid-cols-1 items-stretch gap-8 sm:grid-cols-[1fr_2.3fr] sm:gap-10"
           style={{ transform: `translateX(${heroOffsetX}px)` }}
         >
-          <div className="relative flex flex-1 flex-col pt-2 animate-fade-up">
-            <LogoIntro mounted={mounted} shouldAnimate={shouldAnimate}>
-              <p className="mx-auto max-w-md text-center text-base leading-relaxed text-muted-foreground">
+          <div className="relative flex flex-1 flex-col gap-8 pt-2 animate-fade-up">
+            <LogoIntro mounted={mounted} shouldAnimate={shouldAnimate} flightOrigin={flightOrigin}>
+              <p className="mx-auto max-w-lg text-center text-lg leading-relaxed text-muted-foreground">
                 <span ref={firstLetterRef}>A</span> personal investing platform: track corporate insiders,
                 institutional investors, and Congress in one place.
               </p>
 
-              <div className="flex flex-1 flex-col items-center justify-center gap-8 py-4">
-                <div className="flex w-fit items-center gap-2 rounded-md border border-border bg-card py-1.5 pl-2.5 pr-3 text-xs font-medium text-muted-foreground">
-                  <span className="relative flex h-2 w-2">
+              <div className="flex flex-col items-center gap-8">
+                <div className="flex w-fit items-center gap-2 rounded-md border border-border bg-card py-2 pl-3 pr-3.5 text-sm font-medium text-muted-foreground">
+                  <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-pulse-dot rounded-full bg-positive" />
                   </span>
                   Insider trades refresh twice daily at 9:00 AM and 9:00 PM Eastern
@@ -118,15 +133,15 @@ export default function Home() {
 
                 <Link
                   href="/trade-tracker"
-                  className="w-full max-w-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  className="w-full max-w-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  <div className="flex h-full cursor-pointer flex-col items-center gap-4 rounded-xl border border-border bg-card p-7 text-center shadow-sm transition-[border-color,box-shadow] duration-150 ease-out hover:border-accent hover:shadow-md">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-md border border-border-strong text-accent">
-                      <ChartLineUp size={22} weight="regular" aria-hidden="true" />
+                  <div className="flex h-full cursor-pointer flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center shadow-sm transition-[border-color,box-shadow] duration-150 ease-out hover:border-accent hover:shadow-md">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-md border border-border-strong text-accent">
+                      <ChartLineUp size={28} weight="regular" aria-hidden="true" />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <h2 className="font-semibold text-card-foreground">Trades</h2>
-                      <p className="text-sm leading-relaxed text-muted-foreground">
+                      <h2 className="text-lg font-semibold text-card-foreground">Trades</h2>
+                      <p className="text-base leading-relaxed text-muted-foreground">
                         Corporate insider trades, institutional 13F filings, and congressional trades in one place.
                       </p>
                     </div>
