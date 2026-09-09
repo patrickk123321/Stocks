@@ -236,6 +236,8 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
 
   const handleClearActor = () => load({ ...filters, actor: null });
 
+  const handleClearDates = () => load({ ...filters, dateFrom: "", dateTo: "" });
+
   const handleRefresh = async () => {
     setRefreshing(true);
     setError(null);
@@ -372,6 +374,16 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             )}
           </div>
         </div>
+
+        {(filters.dateFrom || filters.dateTo) && (
+          <button
+            onClick={handleClearDates}
+            aria-label="Clear date range"
+            className={`-m-1 flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-muted hover:text-foreground active:scale-[0.97] ${FOCUS_RING}`}
+          >
+            <X size={14} weight="bold" aria-hidden="true" />
+          </button>
+        )}
 
         {filters.actor && (
           <span className="flex items-center gap-1.5 rounded-md border border-border-strong py-1 pl-3 pr-1.5 font-mono text-xs text-accent">
