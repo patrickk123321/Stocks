@@ -14,7 +14,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-3">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-3">
         <Link
           href="/"
           className="flex items-center gap-2 transition-transform duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
@@ -22,7 +22,9 @@ export default function Header() {
           <span className="flex h-7 w-7 items-center justify-center rounded-md border border-border-strong">
             <PeloSiMark size={16} />
           </span>
-          <span className="text-sm font-semibold tracking-tight text-foreground">Home</span>
+          <span id="header-home-label" className="text-sm font-semibold tracking-tight text-foreground">
+            Home
+          </span>
         </Link>
 
         <nav className="flex items-center gap-1">
