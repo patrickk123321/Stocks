@@ -2,7 +2,6 @@
 
 import {
   ArrowSquareOut,
-  ArrowsClockwise,
   CaretDown,
   CaretUp,
   CheckCircle,
@@ -15,16 +14,14 @@ import {
 import Link from "next/link";
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BackendUnreachableError,
   Category,
-  RateLimitedError,
   ScrapeStatus,
   fetchExportCsv,
   fetchStatus,
   fetchTrades,
-  refreshTrades,
   SortOrder,
 } from "../lib/api";
 import {
@@ -39,9 +36,13 @@ import {
 } from "../lib/tradeFormat";
 import StatTiles from "./StatTiles";
 
-interface Column {
+export interface Column {
   key: string;
   label: string;
+  /** Optional cluster label for the expanded-row detail panel — fields sharing a group render
+   * together under one heading instead of one flat 7-9-item grid. Fields with no group render
+   * ungrouped, at the end. */
+  group?: string;
 }
 
 export interface RowSource {
@@ -63,6 +64,10 @@ export interface SummaryConfig {
   sourceLabel: string;
   sourceNote: string;
   sourceVerified: boolean;
+  /** Human-readable scrape cadence for this category (verified against the backend scheduler,
+   * see backend/app/scheduler.py) — categories don't all share one cadence, so this can't be a
+   * single hardcoded string shared across the table. */
+  refreshCadence: string;
   /** Overrides sourceLabel/sourceNote/sourceVerified per row when a category mixes
    * sources of differing reliability (e.g. congress: House PDF vs. Senate via FMP). */
   sourceFor?: (row: Record<string, unknown>) => RowSource;
@@ -88,10 +93,6 @@ interface Filters {
 const PAGE_SIZE = 50;
 const SKELETON_ROWS = 8;
 const FOCUS_RING = "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70";
-// Mirrors the backend's per-category cooldown (backend/app/routers/*.py's
-// REFRESH_COOLDOWN_SECONDS) so the button visibly reflects the same window
-// the server is already enforcing, instead of letting a click fail silently.
-const REFRESH_COOLDOWN_SECONDS = 10;
 
 // Every URL query-param key this table reads/writes is prefixed with the category
 // (e.g. insiders_q, congress_actor) so switching tabs can never leak one category's
@@ -119,11 +120,43 @@ const CATEGORY_BORDER_CLASS: Record<Category, string> = {
   congress: "border-l-positive",
 };
 
+// Same per-category signifier as CATEGORY_BORDER_CLASS above, for interactive text elements
+// (actor names, ticker links, the actor-filter chip) that were previously hardcoded to the
+// Insiders' brass color regardless of which category tab was active.
+const CATEGORY_TEXT_CLASS: Record<Category, string> = {
+  insiders: "text-accent",
+  institutions: "text-info",
+  congress: "text-positive",
+};
+const CATEGORY_HOVER_TEXT_CLASS: Record<Category, string> = {
+  insiders: "hover:text-accent",
+  institutions: "hover:text-info",
+  congress: "hover:text-positive",
+};
+
 export default function TradeTable({ category, searchPlaceholder, columns, summary, emptyIcon: EmptyIcon = Database }: TradeTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const categoryBorderClass = CATEGORY_BORDER_CLASS[category];
+  const categoryTextClass = CATEGORY_TEXT_CLASS[category];
+  const categoryHoverTextClass = CATEGORY_HOVER_TEXT_CLASS[category];
+
+  // Clusters the expanded-row detail panel's fields under their `group` label (in first-seen
+  // order) instead of one flat 7-9-item grid — see the Column.group doc comment above.
+  const groupedColumns = useMemo(() => {
+    const groups: { name: string; columns: Column[] }[] = [];
+    for (const col of columns) {
+      const name = col.group ?? "";
+      let group = groups.find((g) => g.name === name);
+      if (!group) {
+        group = { name, columns: [] };
+        groups.push(group);
+      }
+      group.columns.push(col);
+    }
+    return groups;
+  }, [columns]);
 
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [total, setTotal] = useState(0);
@@ -131,20 +164,12 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
   const [filters, setFilters] = useState<Filters>(() => filtersFromSearchParams(category, searchParams));
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [loadToken, setLoadToken] = useState(0);
   const [lastRun, setLastRun] = useState<ScrapeStatus | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<{ message: string; tone: "warning" | "positive" } | null>(null);
-  const [cooldownRemaining, setCooldownRemaining] = useState(0);
-
-  useEffect(() => {
-    if (cooldownRemaining <= 0) return undefined;
-    const timeout = setTimeout(() => setCooldownRemaining((s) => s - 1), 1000);
-    return () => clearTimeout(timeout);
-  }, [cooldownRemaining]);
 
   const refreshStatus = async () => {
     try {
@@ -238,29 +263,6 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
 
   const handleClearDates = () => load({ ...filters, dateFrom: "", dateTo: "" });
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    setError(null);
-    try {
-      await refreshTrades(category);
-      await load(filters);
-      await refreshStatus();
-    } catch (err) {
-      setError(
-        err instanceof BackendUnreachableError || err instanceof RateLimitedError
-          ? err.message
-          : "Refresh failed — try again in a moment.",
-      );
-    } finally {
-      setRefreshing(false);
-      // The backend accepts (and starts its own cooldown clock on) this request
-      // whether or not the refresh itself succeeds — mirror that here so the
-      // button doesn't invite an immediate second click that's guaranteed to
-      // 429.
-      setCooldownRemaining(REFRESH_COOLDOWN_SECONDS);
-    }
-  };
-
   const handleExport = async () => {
     setExporting(true);
     setExportNotice(null);
@@ -323,15 +325,6 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           >
             {loading ? "Searching…" : "Search"}
           </button>
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing || cooldownRemaining > 0}
-            title={cooldownRemaining > 0 ? `The last refresh just ran — wait ${cooldownRemaining}s before trying again` : undefined}
-            className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border border-border-strong px-4 py-3 text-sm font-medium text-foreground transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none ${FOCUS_RING}`}
-          >
-            <ArrowsClockwise size={16} className={refreshing ? "animate-spin" : ""} aria-hidden="true" />
-            {refreshing ? "Refreshing…" : cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s` : "Refresh now"}
-          </button>
         </div>
       </div>
 
@@ -349,7 +342,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
               className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
             />
             {!filters.dateFrom && (
-              <span className="pointer-events-none absolute inset-px flex items-center rounded-md bg-card px-2 text-xs text-muted-foreground/70">
+              <span className="pointer-events-none absolute inset-px flex items-center rounded-md bg-card px-2 text-xs text-muted-foreground/85">
                 Any date
               </span>
             )}
@@ -368,7 +361,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
               className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
             />
             {!filters.dateTo && (
-              <span className="pointer-events-none absolute inset-px flex items-center rounded-md bg-card px-2 text-xs text-muted-foreground/70">
+              <span className="pointer-events-none absolute inset-px flex items-center rounded-md bg-card px-2 text-xs text-muted-foreground/85">
                 Any date
               </span>
             )}
@@ -386,7 +379,9 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         )}
 
         {filters.actor && (
-          <span className="flex items-center gap-1.5 rounded-md border border-border-strong py-1 pl-3 pr-1.5 font-mono text-xs text-accent">
+          <span
+            className={`flex items-center gap-1.5 rounded-md border border-border-strong py-1 pl-3 pr-1.5 font-mono text-xs ${categoryTextClass}`}
+          >
             {summary.actorLabel}: {filters.actor}
             <button
               onClick={handleClearActor}
@@ -457,11 +452,13 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
           >
             <option value="">Most recent</option>
-            {columns.map((col) => (
-              <option key={col.key} value={col.key}>
-                {col.label}
-              </option>
-            ))}
+            <optgroup label="Column">
+              {columns.map((col) => (
+                <option key={col.key} value={col.key}>
+                  {col.label}
+                </option>
+              ))}
+            </optgroup>
           </select>
           <button
             onClick={() => load({ ...filters, order: filters.order === "desc" ? "asc" : "desc" })}
@@ -514,7 +511,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
             <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
               {filters.actor || filters.dateFrom || filters.dateTo
                 ? "No results match these filters."
-                : 'No results yet. The daily scrape runs at 9am — or click "Refresh now" to fetch the latest filings.'}
+                : `No results yet. The scrape runs ${summary.refreshCadence} — check back after the next run.`}
             </p>
           </div>
         ) : (
@@ -574,7 +571,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                           handleActorClick(actor);
                         }}
                         title={`Show only ${actor}'s ${summary.actorLabel.toLowerCase()} activity`}
-                        className={`truncate text-left text-sm font-semibold text-card-foreground hover:text-accent hover:underline ${FOCUS_RING}`}
+                        className={`truncate text-left text-sm font-semibold text-card-foreground hover:underline ${categoryHoverTextClass} ${FOCUS_RING}`}
                       >
                         {actor}
                       </button>
@@ -585,7 +582,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                               href={`/ticker/${encodeURIComponent(ticker)}`}
                               onClick={(e) => e.stopPropagation()}
                               title={`See everything tracked for ${ticker}`}
-                              className={`font-semibold text-foreground hover:text-accent hover:underline ${FOCUS_RING}`}
+                              className={`font-semibold text-foreground hover:underline ${categoryHoverTextClass} ${FOCUS_RING}`}
                             >
                               {ticker}
                             </Link>
@@ -629,14 +626,27 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
 
                 {isOpen && (
                   <div id={panelId} role="region" className="border-t border-border bg-muted/30 px-5 py-5">
-                    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
-                      {columns.map((col) => (
-                        <div key={col.key} className="min-w-0">
-                          <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{col.label}</dt>
-                          <dd className="mt-0.5 truncate font-mono text-sm text-card-foreground">{renderCell(col.key, row[col.key])}</dd>
+                    <div className="flex flex-col gap-4">
+                      {groupedColumns.map((group) => (
+                        <div key={group.name || "ungrouped"}>
+                          {group.name && (
+                            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                              {group.name}
+                            </p>
+                          )}
+                          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+                            {group.columns.map((col) => (
+                              <div key={col.key} className="min-w-0">
+                                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{col.label}</dt>
+                                <dd className="mt-0.5 truncate font-mono text-sm text-card-foreground">
+                                  {renderCell(col.key, row[col.key])}
+                                </dd>
+                              </div>
+                            ))}
+                          </dl>
                         </div>
                       ))}
-                    </dl>
+                    </div>
                     <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex max-w-md flex-col gap-1">
                         <span
@@ -658,7 +668,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                         </a>
                       ) : (
                         <p className="text-xs text-muted-foreground/85">
-                          Source link unavailable for this row — Refresh now to fetch it with a live link.
+                          Source link unavailable for this row — it will appear once the next scheduled scrape picks it up.
                         </p>
                       )}
                     </div>

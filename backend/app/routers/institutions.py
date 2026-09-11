@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
+from app.auth import require_admin_key
 from app.csv_export import export_headers, rows_to_csv
 from app.db import get_position_changes, query_all_rows, query_rows, record_scrape_run
 from app.rate_limit import cooldown
@@ -37,8 +38,8 @@ def list_institutional_holdings(
     q: str | None = None,
     sort: str | None = None,
     order: str = "desc",
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=1_000_000),
     date_from: str | None = None,
     date_to: str | None = None,
     actor: str | None = None,
@@ -74,15 +75,22 @@ def export_institutional_holdings(
 
 
 @router.get("/changes")
-def list_position_changes(change_type: str | None = None, limit: int = 50, offset: int = 0):
+def list_position_changes(
+    change_type: str | None = None,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=1_000_000),
+):
     """NEW / EXITED / CHANGED institutional positions, derived by diffing each
     filer's two most recent 13F periods — see db.get_position_changes."""
     rows, total = get_position_changes(change_type, limit, offset)
     return {"rows": _attach_source_url(rows), "total": total}
 
 
-@router.post("/refresh", dependencies=[Depends(cooldown("institutions_refresh", REFRESH_COOLDOWN_SECONDS))])
-def refresh(count: int = 50):
+@router.post(
+    "/refresh",
+    dependencies=[Depends(require_admin_key), Depends(cooldown("institutions_refresh", REFRESH_COOLDOWN_SECONDS))],
+)
+def refresh(count: int = Query(50, ge=1, le=200)):
     inserted, errors = refresh_13f(count=count)
     record_scrape_run("institutions", inserted, errors)
     return {"inserted": inserted, "errors": errors}

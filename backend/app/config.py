@@ -30,3 +30,8 @@ CORS_ALLOWED_ORIGINS = [
 # working without this. Only required by Senate trade tracking, which checks
 # at call time and reports a clear error rather than failing app startup.
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+
+# Shared secret gating the three /refresh endpoints and /api/status (see app/auth.py).
+# Leaving this unset doesn't skip a feature — it locks those endpoints, since
+# require_admin_key always rejects with 401 when this is empty.
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()

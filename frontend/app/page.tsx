@@ -111,6 +111,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 flex-col overflow-x-clip">
+      <h1 className="sr-only">ToTheMoon — track corporate insiders, institutional investors, and Congress in one place</h1>
       <main className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col px-6 py-3 sm:py-4">
         <section
           className="grid flex-1 grid-cols-1 items-stretch gap-8 sm:grid-cols-[1fr_2.3fr] sm:gap-10"

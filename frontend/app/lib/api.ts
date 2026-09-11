@@ -122,15 +122,6 @@ export async function fetchExportCsv(category: Category, q: string, options: Fet
   return { blob, totalMatched, rowCount, truncated };
 }
 
-export async function refreshTrades(category: Category): Promise<{ inserted: number; errors: number }> {
-  const extra = category === "congress" ? `?year=${new Date().getFullYear()}` : "";
-  const res = await apiFetch(`/api/${category}/refresh${extra}`, { method: "POST" }, REFRESH_TIMEOUT_MS);
-  if (!res.ok) {
-    await throwForStatus(res, `Failed to refresh ${category}: ${res.status}`);
-  }
-  return res.json();
-}
-
 export interface ScrapeStatus {
   ran_at: string;
   inserted: number;
@@ -140,7 +131,7 @@ export interface ScrapeStatus {
 export async function fetchStatus(): Promise<Record<Category, ScrapeStatus | null>> {
   const res = await apiFetch("/api/status");
   if (!res.ok) {
-    throw new Error(`Failed to fetch status: ${res.status}`);
+    await throwForStatus(res, `Failed to fetch status: ${res.status}`);
   }
   return res.json();
 }

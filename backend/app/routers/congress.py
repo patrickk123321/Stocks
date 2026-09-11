@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
+from app.auth import require_admin_key
 from app.csv_export import export_headers, rows_to_csv
 from app.db import query_all_rows, query_rows, record_scrape_run
 from app.rate_limit import cooldown
@@ -41,8 +42,8 @@ def list_congress_trades(
     q: str | None = None,
     sort: str | None = None,
     order: str = "desc",
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=1_000_000),
     date_from: str | None = None,
     date_to: str | None = None,
     actor: str | None = None,
@@ -79,8 +80,15 @@ def export_congress_trades(
     )
 
 
-@router.post("/refresh", dependencies=[Depends(cooldown("congress_refresh", REFRESH_COOLDOWN_SECONDS))])
-def refresh(year: int, limit: int | None = None, since_date: str | None = None):
+@router.post(
+    "/refresh",
+    dependencies=[Depends(require_admin_key), Depends(cooldown("congress_refresh", REFRESH_COOLDOWN_SECONDS))],
+)
+def refresh(
+    year: int = Query(..., ge=2012, le=2100),
+    limit: int | None = Query(None, ge=1, le=1000),
+    since_date: str | None = None,
+):
     inserted, errors = refresh_all_congress_trades(year=year, limit=limit, since_date=since_date)
     record_scrape_run("congress", inserted, errors)
     return {"inserted": inserted, "errors": errors}

@@ -4,7 +4,7 @@ import { Bank, Buildings, UserCircle } from "@phosphor-icons/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import PositionChanges from "../components/PositionChanges";
-import TradeTable, { SummaryConfig } from "../components/TradeTable";
+import TradeTable, { Column, SummaryConfig } from "../components/TradeTable";
 import { Category } from "../lib/api";
 
 function isCategory(value: string | null): value is Category {
@@ -35,36 +35,36 @@ const TABS: { key: Category; label: string; icon: typeof UserCircle; active: str
   },
 ];
 
-const COLUMNS: Record<Category, { key: string; label: string }[]> = {
+const COLUMNS: Record<Category, Column[]> = {
   insiders: [
-    { key: "issuer_ticker", label: "Ticker" },
-    { key: "issuer_name", label: "Company" },
-    { key: "owner_name", label: "Insider" },
-    { key: "officer_title", label: "Title" },
-    { key: "transaction_code", label: "Code" },
-    { key: "acquired_disposed", label: "A/D" },
-    { key: "shares", label: "Shares" },
-    { key: "price_per_share", label: "Price" },
-    { key: "transaction_date", label: "Date" },
+    { key: "issuer_ticker", label: "Ticker", group: "Company & Insider" },
+    { key: "issuer_name", label: "Company", group: "Company & Insider" },
+    { key: "owner_name", label: "Insider", group: "Company & Insider" },
+    { key: "officer_title", label: "Title", group: "Company & Insider" },
+    { key: "transaction_code", label: "Code", group: "Transaction" },
+    { key: "acquired_disposed", label: "A/D", group: "Transaction" },
+    { key: "shares", label: "Shares", group: "Transaction" },
+    { key: "price_per_share", label: "Price", group: "Transaction" },
+    { key: "transaction_date", label: "Date", group: "Transaction" },
   ],
   institutions: [
-    { key: "issuer_name", label: "Company" },
-    { key: "cusip", label: "CUSIP" },
-    { key: "filer_name", label: "Filer" },
-    { key: "value", label: "Value ($)" },
-    { key: "shares", label: "Shares" },
-    { key: "investment_discretion", label: "Discretion" },
-    { key: "period_of_report", label: "Period" },
+    { key: "issuer_name", label: "Company", group: "Holding" },
+    { key: "cusip", label: "CUSIP", group: "Holding" },
+    { key: "filer_name", label: "Filer", group: "Holding" },
+    { key: "value", label: "Value ($)", group: "Position" },
+    { key: "shares", label: "Shares", group: "Position" },
+    { key: "investment_discretion", label: "Discretion", group: "Position" },
+    { key: "period_of_report", label: "Period", group: "Position" },
   ],
   congress: [
-    { key: "chamber", label: "Chamber" },
-    { key: "member_name", label: "Member" },
-    { key: "state_district", label: "State/District" },
-    { key: "ticker", label: "Ticker" },
-    { key: "asset_description", label: "Asset" },
-    { key: "transaction_type", label: "Type" },
-    { key: "amount_range", label: "Amount" },
-    { key: "transaction_date", label: "Date" },
+    { key: "chamber", label: "Chamber", group: "Member" },
+    { key: "member_name", label: "Member", group: "Member" },
+    { key: "state_district", label: "State/District", group: "Member" },
+    { key: "ticker", label: "Ticker", group: "Transaction" },
+    { key: "asset_description", label: "Asset", group: "Transaction" },
+    { key: "transaction_type", label: "Type", group: "Transaction" },
+    { key: "amount_range", label: "Amount", group: "Transaction" },
+    { key: "transaction_date", label: "Date", group: "Transaction" },
   ],
 };
 
@@ -88,6 +88,7 @@ const SUMMARY: Record<Category, SummaryConfig> = {
     sourceNote:
       "Read directly from the SEC's structured EDGAR filing feed (not a PDF or text extraction) — the most reliable source in this app.",
     sourceVerified: true,
+    refreshCadence: "twice daily (9:00 AM & 9:00 PM Eastern)",
   },
   institutions: {
     actorLabel: "Institution",
@@ -102,6 +103,7 @@ const SUMMARY: Record<Category, SummaryConfig> = {
     sourceNote:
       "Read directly from the SEC's structured EDGAR filing feed (not a PDF or text extraction) — the most reliable source in this app.",
     sourceVerified: true,
+    refreshCadence: "daily at 9:00 AM Eastern",
   },
   congress: {
     actorLabel: "Member of Congress",
@@ -119,6 +121,7 @@ const SUMMARY: Record<Category, SummaryConfig> = {
     sourceNote:
       "House rows are auto-extracted from House Clerk PDFs; Senate rows come via a third-party API (efdsearch.senate.gov blocks direct automated access). Expand a row for its specific source.",
     sourceVerified: false,
+    refreshCadence: "daily at 9:00 AM Eastern",
     sourceFor: (row) =>
       row.chamber === "senate"
         ? {
@@ -173,7 +176,8 @@ export default function TradeTrackerPage() {
         <div className="flex flex-col gap-1">
           <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Trades</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Corporate insider trades, institutional 13F holdings, and congressional trades — refreshed daily at 9am.
+            Corporate insider trades refresh twice daily (9:00 AM &amp; 9:00 PM Eastern); institutional 13F holdings and
+            congressional trades refresh daily at 9:00 AM Eastern.
           </p>
         </div>
 

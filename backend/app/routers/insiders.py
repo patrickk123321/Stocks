@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
+from app.auth import require_admin_key
 from app.csv_export import export_headers, rows_to_csv
 from app.db import query_all_rows, query_rows, record_scrape_run
 from app.rate_limit import cooldown
@@ -46,8 +47,8 @@ def list_insider_trades(
     q: str | None = None,
     sort: str | None = None,
     order: str = "desc",
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=1_000_000),
     date_from: str | None = None,
     date_to: str | None = None,
     actor: str | None = None,
@@ -84,8 +85,11 @@ def export_insider_trades(
     )
 
 
-@router.post("/refresh", dependencies=[Depends(cooldown("insiders_refresh", REFRESH_COOLDOWN_SECONDS))])
-def refresh(count: int = 100):
+@router.post(
+    "/refresh",
+    dependencies=[Depends(require_admin_key), Depends(cooldown("insiders_refresh", REFRESH_COOLDOWN_SECONDS))],
+)
+def refresh(count: int = Query(100, ge=1, le=500)):
     inserted, errors = refresh_form4(count=count)
     record_scrape_run("insiders", inserted, errors)
     return {"inserted": inserted, "errors": errors}
