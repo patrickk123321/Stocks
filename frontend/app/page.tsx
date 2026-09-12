@@ -110,21 +110,26 @@ export default function Home() {
   }, [mounted]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-x-clip">
+    <div className="flex flex-1 flex-col overflow-x-clip sm:h-[calc(100dvh-64px)] sm:overflow-hidden">
       <h1 className="sr-only">ToTheMoon — track corporate insiders, institutional investors, and Congress in one place</h1>
-      <main className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col px-6 py-3 sm:py-4">
+      {/* pl-36 (vs. pr-6) is deliberately asymmetric — it's not extra breathing room, it's the
+          reserved space the rocket's resting position (LogoIntro.tsx's ROCKET_REST, ~-132px
+          left of its own origin) needs to reach into without the page's overflow-x-clip wrapper
+          above clipping it. Header.tsx uses the same pl-36/pr-6 split so the two containers
+          share one horizontal coordinate space, which heroOffsetX below depends on. */}
+      <main className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col pl-36 pr-6 py-2 sm:py-3">
         <section
           className="grid flex-1 grid-cols-1 items-stretch gap-8 sm:grid-cols-[1fr_2.3fr] sm:gap-10"
           style={{ transform: `translateX(${heroOffsetX}px)` }}
         >
-          <div className="relative flex flex-1 flex-col gap-8 pt-2 animate-fade-up">
+          <div className="relative flex flex-1 flex-col gap-6 pt-2 animate-fade-up">
             <LogoIntro mounted={mounted} shouldAnimate={shouldAnimate} flightOrigin={flightOrigin}>
               <p className="mx-auto max-w-lg text-center text-lg leading-relaxed text-muted-foreground">
                 <span ref={firstLetterRef}>A</span> personal investing platform: track corporate insiders,
                 institutional investors, and Congress in one place.
               </p>
 
-              <div className="flex flex-col items-center gap-8">
+              <div className="flex flex-col items-center gap-6">
                 <div className="flex w-fit items-center gap-2 rounded-md border border-border bg-card py-2 pl-3 pr-3.5 text-sm font-medium text-muted-foreground">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="absolute inline-flex h-full w-full animate-pulse-dot rounded-full bg-positive" />

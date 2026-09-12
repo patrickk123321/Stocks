@@ -51,6 +51,9 @@ const HEAD_PX = {
 // composite-box pixels (32.5,95)/(17.5,110)/(5,122.5)), continuing its own cascade: circles
 // 2→3 step by (-12.5, +12.5), so this is one more step past 3, toward where the head lands.
 const HEAD_TARGET = { x: -5, y: 133 };
+// The math above puts the box's own left edge ~132px past the box's resting column — page.tsx's
+// homepage <main> reserves 144px of left padding (pl-36, not the usual px-6) specifically so
+// this has real room to reach into without the page's overflow-x-clip wrapper clipping it.
 const ROCKET_REST = { left: HEAD_TARGET.x - HEAD_PX.x, top: HEAD_TARGET.y - HEAD_PX.y };
 
 function cubicBezierPoint(p0: number, p1: number, p2: number, p3: number, t: number): number {
@@ -142,7 +145,7 @@ export default function LogoIntro({ mounted, shouldAnimate, flightOrigin, childr
           cascade rather than sitting disconnected from it. Height reserved in advance
           (bubble ~138px plus the 200px rocket box, minus overlap) so `children` below never
           shifts when the rocket/bubble mount. */}
-      <div className="relative w-fit min-h-[330px] shrink-0 self-start">
+      <div className="relative w-fit min-h-[292px] shrink-0 self-start">
         {mounted && <TitleBubble shouldAnimate={shouldAnimate} startDelay={shouldAnimate ? FLIGHT_DURATION : 0} />}
 
         {/* The rocket's static resting wrapper — deliberately NOT the element Framer Motion
@@ -184,7 +187,12 @@ export default function LogoIntro({ mounted, shouldAnimate, flightOrigin, childr
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-8">{children}</div>
+      {/* -mt-[123px]: measured exactly (document.body.scrollHeight - window.innerHeight) against
+          the live page, not guessed — pulls the description/pill/card block up by precisely the
+          homepage's remaining scroll overflow, no more. This makes the gap above this block
+          smaller than the (still-even) gaps below it, trading that consistency for exactly
+          eliminating the scroll — re-measure and adjust this one number if content changes. */}
+      <div className="flex flex-1 flex-col gap-6 -mt-[123px]">{children}</div>
     </>
   );
 }

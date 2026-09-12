@@ -14,7 +14,12 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background">
-      <div className="mx-auto flex w-full max-w-[96rem] items-center justify-between px-6 py-3">
+      {/* pl-36/pr-6 matches page.tsx's homepage <main> exactly (not just its max-width) — the
+          homepage's heroOffsetX measurement computes a transform from the gap between this
+          "Home" label and the hero's own content, so if the two containers' padding ever
+          diverges, that transform would shift the whole hero to compensate, undoing whatever
+          padding change was made there. Keep these in sync. */}
+      <div className="mx-auto flex w-full max-w-[96rem] items-center justify-between pl-36 pr-6 py-3">
         <Link
           href="/"
           className="flex items-center gap-2 transition-transform duration-150 ease-out active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
