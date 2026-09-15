@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Fira_Code, Fraunces, Public_Sans } from "next/font/google";
 import Header from "./components/Header";
@@ -39,8 +40,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${publicSans.variable} ${firaCode.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <Header />
-        {children}
+        <ClerkProvider>
+          <Header />
+          {children}
+        </ClerkProvider>
       </body>
     </html>
   );
