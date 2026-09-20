@@ -8,11 +8,12 @@ Verification is done locally via Clerk's public JWKS (no CLERK_SECRET_KEY or
 per-request call to Clerk's API needed) — the same approach Clerk documents
 for backends outside their first-party SDKs.
 
-Requires the Clerk Dashboard's session token to include an `email` custom
-claim: Dashboard -> Sessions -> Customize session token -> add
-`"email": "{{user.primary_email_address}}"`. Clerk's default session claims
-don't include email, and this avoids an extra Clerk Backend API call per
-request just to look it up.
+The `email` claim is optional — Clerk's default session claims don't include
+it, and pulling it in would require a Clerk Dashboard session-token
+customization plus an extra Backend API call. It's not worth requiring: the
+only consumer is app/alerts.py's Resend email path, which is currently
+inactive (RESEND_API_KEY unset), so a missing email just means no bonus
+email gets sent — it never blocks auth.
 """
 
 import base64
@@ -65,12 +66,9 @@ def get_current_user(authorization: str | None = Header(default=None)) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or expired session token.") from exc
 
     user_id = claims.get("sub")
-    email = claims.get("email")
-    if not user_id or not email:
-        raise HTTPException(
-            status_code=401,
-            detail="Session token missing sub/email claim — check the Clerk Dashboard's session token customization.",
-        )
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Session token missing sub claim.")
+    email = claims.get("email") or ""
 
     upsert_user(user_id, email)
     return {"id": user_id, "email": email}
