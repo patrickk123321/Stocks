@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from app.alerts import check_and_notify
 from app.db import record_scrape_run, table_is_empty
 from app.sources.congress_trades import refresh_all_congress_trades
 from app.sources.edgar_13f import refresh_13f
@@ -71,9 +72,26 @@ def run_insider_refresh() -> None:
 
 
 def run_daily_refresh() -> None:
-    since = (date.today() - timedelta(days=DAILY_LOOKBACK_DAYS)).isoformat()
+    """Institutions (13F, quarterly data) — once-daily is plenty; unlike
+    congress trades, there's no buy-alert feature riding on this one."""
     _run_refresh("institutions", refresh_13f, count=100)
-    _run_refresh("congress", refresh_all_congress_trades, year=date.today().year, since_date=since)
+
+
+def run_congress_refresh() -> None:
+    """Congress trades get 3 checks/day (see start_scheduler for the times and
+    why) instead of institutions' once-daily, specifically to cut watchlist-alert
+    latency — filings trickle in during business hours with no documented fixed
+    publish time, so more frequent checks catch same-day buys sooner. Every
+    newly-inserted row is handed to alerts.check_and_notify right after this
+    refresh, so alerting stays buy-event-driven rather than a separate job."""
+    since = (date.today() - timedelta(days=DAILY_LOOKBACK_DAYS)).isoformat()
+    new_rows: list[dict] = []
+    _run_refresh(
+        "congress", refresh_all_congress_trades,
+        year=date.today().year, since_date=since, on_new_rows=new_rows.extend,
+    )
+    if new_rows:
+        check_and_notify(new_rows)
 
 
 def start_scheduler() -> BackgroundScheduler:
@@ -98,6 +116,22 @@ def start_scheduler() -> BackgroundScheduler:
         id="daily_refresh",
         replace_existing=True,
     )
+    # 11am / 3pm / 7pm Eastern: spread across and after standard federal
+    # business hours (House Clerk / Senate offices run ~9am-6pm ET, Mon-Fri).
+    # There's no documented exact "batch publish" time from either chamber —
+    # the House's bulk ZIP is republished daily "as filings come in" — so this
+    # isn't a scientifically-derived optimum, just a practical latency win over
+    # the previous once-daily 9am check for catching same-day buys.
+    for hour, job_id in ((11, "congress_refresh_1"), (15, "congress_refresh_2"), (19, "congress_refresh_3")):
+        scheduler.add_job(
+            run_congress_refresh,
+            CronTrigger(hour=hour, minute=0, timezone=EASTERN),
+            id=job_id,
+            replace_existing=True,
+        )
     scheduler.start()
-    logger.info("scheduler started (America/New_York): insider refresh at 09:00 and 21:00, institutions/congress refresh at 09:00")
+    logger.info(
+        "scheduler started (America/New_York): insider refresh at 09:00 and 21:00, "
+        "institutions refresh at 09:00, congress refresh at 11:00/15:00/19:00"
+    )
     return scheduler

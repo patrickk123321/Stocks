@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import CORS_ALLOWED_ORIGINS
 from app.db import get_last_scrape_run, init_db
 from app.ip_rate_limit import RateLimitMiddleware
-from app.routers import congress, institutions, insiders
+from app.routers import congress, institutions, insiders, watchlist
 from app.scheduler import backfill_if_empty, start_scheduler
 from app.security_headers import SecurityHeadersMiddleware
 
@@ -34,6 +34,7 @@ app.add_middleware(
 app.include_router(insiders.router)
 app.include_router(institutions.router)
 app.include_router(congress.router)
+app.include_router(watchlist.router)
 
 
 @app.on_event("startup")

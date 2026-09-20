@@ -38,7 +38,7 @@ import re
 import httpx
 
 from app.config import FMP_API_KEY
-from app.db import insert_rows
+from app.db import insert_congress_trades
 
 logger = logging.getLogger("stocks.sources.senate_trades")
 
@@ -86,8 +86,12 @@ def _parse_row(entry: dict) -> dict | None:
     }
 
 
-def refresh_senate_trades() -> tuple[int, int]:
+def refresh_senate_trades(on_new_rows=None) -> tuple[int, int]:
     """Fetches the latest Senate PTR disclosures and stores their trade rows.
+
+    `on_new_rows`, if given, is called once with the list of newly-inserted
+    row dicts — see congress_trades.py's refresh_congress_trades for why.
+
     Returns (rows inserted, entries that failed to parse)."""
     if not FMP_API_KEY:
         raise FmpNotConfiguredError("FMP_API_KEY is not set — add it to .env to enable Senate trade tracking.")
@@ -110,5 +114,7 @@ def refresh_senate_trades() -> tuple[int, int]:
             continue
         rows.append(row)
 
-    inserted = insert_rows("congress_trades", rows)
-    return inserted, error_count
+    new_rows = insert_congress_trades(rows)
+    if on_new_rows and new_rows:
+        on_new_rows(new_rows)
+    return len(new_rows), error_count

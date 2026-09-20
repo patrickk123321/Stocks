@@ -1,17 +1,48 @@
 "use client";
 
-import { SignInButton, SignUpButton, Show, UserButton } from "@clerk/nextjs";
-import { ChartLineUp } from "@phosphor-icons/react";
+import { SignInButton, SignUpButton, Show, UserButton, useAuth } from "@clerk/nextjs";
+import { ChartLineUp, Star } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { fetchUnreadAlertCount } from "../lib/api";
 import PeloSiMark from "./PeloSiMark";
 
 const NAV_ITEMS = [
   { key: "trade-tracker", href: "/trade-tracker", label: "Trades", icon: ChartLineUp },
+  { key: "watchlist", href: "/watchlist", label: "Watchlist", icon: Star },
 ] as const;
 
 export default function Header() {
   const pathname = usePathname();
+  const { isSignedIn, getToken } = useAuth();
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setUnreadAlerts(0);
+      return;
+    }
+    let cancelled = false;
+    fetchUnreadAlertCount(getToken)
+      .then((count) => {
+        if (!cancelled) setUnreadAlerts(count);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Re-fetch on every route change, since a new alert can arrive while the
+    // user is browsing elsewhere on the site.
+  }, [isSignedIn, getToken, pathname]);
+
+  useEffect(() => {
+    // The /watchlist page dispatches this right after marking alerts seen,
+    // so the badge clears immediately instead of waiting for a route change.
+    const onSeen = () => setUnreadAlerts(0);
+    window.addEventListener("watchlist-alerts-seen", onSeen);
+    return () => window.removeEventListener("watchlist-alerts-seen", onSeen);
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background">
@@ -47,8 +78,21 @@ export default function Header() {
                     active ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Icon size={16} weight={active ? "fill" : "regular"} aria-hidden="true" />
-                  <span className="hidden sm:inline">{item.label}</span>
+                  <span className="relative flex items-center">
+                    <Icon size={16} weight={active ? "fill" : "regular"} aria-hidden="true" />
+                    {item.key === "watchlist" && unreadAlerts > 0 && (
+                      <span
+                        className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </span>
+                  <span className="hidden sm:inline">
+                    {item.label}
+                    {item.key === "watchlist" && unreadAlerts > 0 && (
+                      <span className="sr-only"> ({unreadAlerts} unread alert{unreadAlerts !== 1 ? "s" : ""})</span>
+                    )}
+                  </span>
                 </Link>
               );
             })}

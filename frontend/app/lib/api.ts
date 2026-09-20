@@ -153,3 +153,68 @@ export async function fetchPositionChanges(
   }
   return res.json();
 }
+
+// Watchlist calls are the only ones that need the caller's identity, so only
+// these attach a Clerk bearer token — everything above stays unauthenticated.
+export type GetToken = () => Promise<string | null>;
+
+async function authedFetch(path: string, getToken: GetToken, init: RequestInit = {}): Promise<Response> {
+  const token = await getToken();
+  const headers = new Headers(init.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  return apiFetch(path, { ...init, headers });
+}
+
+export interface WatchlistAlert {
+  sent_at: string;
+  ticker: string;
+  member_name: string;
+  chamber: string;
+  transaction_date: string;
+  amount_range: string;
+  [key: string]: unknown;
+}
+
+export async function fetchWatchlist(getToken: GetToken): Promise<string[]> {
+  const res = await authedFetch("/api/watchlist", getToken);
+  if (!res.ok) throw new Error(`Failed to fetch watchlist: ${res.status}`);
+  const data = await res.json();
+  return data.tickers;
+}
+
+export async function addToWatchlist(ticker: string, getToken: GetToken): Promise<string[]> {
+  const res = await authedFetch("/api/watchlist", getToken, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  if (!res.ok) throw new Error(`Failed to add ${ticker} to watchlist: ${res.status}`);
+  const data = await res.json();
+  return data.tickers;
+}
+
+export async function removeFromWatchlist(ticker: string, getToken: GetToken): Promise<string[]> {
+  const res = await authedFetch(`/api/watchlist/${encodeURIComponent(ticker)}`, getToken, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Failed to remove ${ticker} from watchlist: ${res.status}`);
+  const data = await res.json();
+  return data.tickers;
+}
+
+export async function fetchWatchlistAlerts(getToken: GetToken): Promise<WatchlistAlert[]> {
+  const res = await authedFetch("/api/watchlist/alerts", getToken);
+  if (!res.ok) throw new Error(`Failed to fetch watchlist alerts: ${res.status}`);
+  const data = await res.json();
+  return data.alerts;
+}
+
+export async function fetchUnreadAlertCount(getToken: GetToken): Promise<number> {
+  const res = await authedFetch("/api/watchlist/alerts/unread-count", getToken);
+  if (!res.ok) throw new Error(`Failed to fetch unread alert count: ${res.status}`);
+  const data = await res.json();
+  return data.count;
+}
+
+export async function markAlertsSeen(getToken: GetToken): Promise<void> {
+  const res = await authedFetch("/api/watchlist/alerts/seen", getToken, { method: "POST" });
+  if (!res.ok) throw new Error(`Failed to mark alerts seen: ${res.status}`);
+}

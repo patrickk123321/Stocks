@@ -35,3 +35,15 @@ FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 # Leaving this unset doesn't skip a feature — it locks those endpoints, since
 # require_admin_key always rejects with 401 when this is empty.
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
+
+# Same Clerk publishable key the frontend uses (NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) —
+# needed here too so app/auth_clerk.py can derive Clerk's Frontend API host (and
+# therefore its JWKS URL) to verify session tokens. Optional at the config level
+# (this app ran fine with zero user concept before the watchlist feature); checked
+# at call time in auth_clerk.py instead of failing startup like SEC_EDGAR_CONTACT_EMAIL.
+CLERK_PUBLISHABLE_KEY = os.getenv("CLERK_PUBLISHABLE_KEY", "").strip()
+
+# Resend (resend.com) — sends watchlist-alert emails. Optional; app/notifications/email.py
+# logs and skips sending rather than raising when unset, same pattern as FMP_API_KEY.
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "").strip()

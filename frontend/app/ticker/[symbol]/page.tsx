@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { fetchTrades } from "../../lib/api";
 import { badge, badgeLabel, badgeTitle, badgeTone, formatMeta } from "../../lib/tradeFormat";
+import WatchlistButton from "../../components/WatchlistButton";
 
 type Row = Record<string, unknown>;
 
@@ -117,7 +118,10 @@ export default function TickerPage() {
             <ArrowLeft size={16} aria-hidden="true" />
             Home
           </Link>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{symbol}</h1>
+          <h1 className="flex items-center gap-2 font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            {symbol}
+            <WatchlistButton ticker={symbol} size={22} />
+          </h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Every tracked insider and congressional trade in {symbol}, plus a best-effort match on institutional 13F holdings.
           </p>

@@ -26,7 +26,7 @@ import httpx
 import pdfplumber
 
 from app.config import HOUSE_CLERK_USER_AGENT
-from app.db import insert_rows
+from app.db import insert_congress_trades
 from app.sources.senate_trades import FmpNotConfiguredError, refresh_senate_trades
 
 logger = logging.getLogger("stocks.sources.congress_trades")
@@ -216,12 +216,23 @@ def _parse_ptr_pdf(pdf_bytes: bytes) -> list[dict]:
     return rows
 
 
-def refresh_congress_trades(year: int, limit: int | None = None, since_date: str | None = None) -> tuple[int, int]:
+def refresh_congress_trades(
+    year: int,
+    limit: int | None = None,
+    since_date: str | None = None,
+    on_new_rows=None,
+) -> tuple[int, int]:
     """Fetches House PTR filings for a given year and stores their trade rows.
 
     `since_date` (ISO "YYYY-MM-DD") restricts to filings filed on/after that date —
     used for the daily job so it doesn't re-download every PTR PDF for the year
     on each run. Omit it for a full-year backfill.
+
+    `on_new_rows`, if given, is called with the list of newly-inserted row dicts
+    (not just a count) after each PTR is processed — used by the scheduler to
+    feed app/alerts.py's watchlist check without a separate "what changed"
+    query. Left unused (None) by the admin-triggered /refresh endpoint and the
+    startup backfill, where alerting on a bulk historical load makes no sense.
 
     Returns (rows inserted, filings that failed to fetch/parse).
     """
@@ -267,11 +278,19 @@ def refresh_congress_trades(year: int, limit: int | None = None, since_date: str
                 }
                 for trade_row in trade_rows
             ]
-            total_inserted += insert_rows("congress_trades", rows)
+            new_rows = insert_congress_trades(rows)
+            if on_new_rows and new_rows:
+                on_new_rows(new_rows)
+            total_inserted += len(new_rows)
         return total_inserted, error_count
 
 
-def refresh_all_congress_trades(year: int, limit: int | None = None, since_date: str | None = None) -> tuple[int, int]:
+def refresh_all_congress_trades(
+    year: int,
+    limit: int | None = None,
+    since_date: str | None = None,
+    on_new_rows=None,
+) -> tuple[int, int]:
     """Runs both the House PTR refresh (above) and the Senate refresh
     (senate_trades.py), combined into one result — the two chambers share a
     single Congress tab/tracked category in the rest of the app, and one
@@ -280,7 +299,7 @@ def refresh_all_congress_trades(year: int, limit: int | None = None, since_date:
     total_errors = 0
 
     try:
-        inserted, errors = refresh_congress_trades(year=year, limit=limit, since_date=since_date)
+        inserted, errors = refresh_congress_trades(year=year, limit=limit, since_date=since_date, on_new_rows=on_new_rows)
         total_inserted += inserted
         total_errors += errors
     except Exception:
@@ -288,7 +307,7 @@ def refresh_all_congress_trades(year: int, limit: int | None = None, since_date:
         total_errors += 1
 
     try:
-        inserted, errors = refresh_senate_trades()
+        inserted, errors = refresh_senate_trades(on_new_rows=on_new_rows)
         total_inserted += inserted
         total_errors += errors
     except FmpNotConfiguredError:

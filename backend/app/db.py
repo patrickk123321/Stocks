@@ -85,6 +85,42 @@ CREATE INDEX IF NOT EXISTS idx_congress_member ON congress_trades(member_name);
 CREATE INDEX IF NOT EXISTS idx_congress_date ON congress_trades(transaction_date);
 
 CREATE INDEX IF NOT EXISTS idx_scrape_runs_category_ran_at ON scrape_runs(category, ran_at DESC);
+
+-- Clerk user id (the JWT `sub` claim) plus the email pulled from the verified
+-- session token — see app/auth_clerk.py. Populated lazily: a row only exists
+-- once that user has made an authenticated request.
+-- last_alerts_seen_at is NULL until the user's first visit to the watchlist
+-- page; used to compute the unread-alert badge count in the header nav.
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_alerts_seen_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS watchlist_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(user_id, ticker)
+);
+
+-- Durable dedupe for watchlist alerts — an in-memory guard (like
+-- app/rate_limit.py's cooldown) would double-email a user across restarts.
+CREATE TABLE IF NOT EXISTS alerts_sent (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    congress_trade_id INTEGER NOT NULL,
+    sent_at TEXT NOT NULL,
+    UNIQUE(user_id, congress_trade_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_watchlist_items_user ON watchlist_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_watchlist_items_ticker ON watchlist_items(ticker);
+CREATE INDEX IF NOT EXISTS idx_alerts_sent_user ON alerts_sent(user_id, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alerts_sent_trade ON alerts_sent(congress_trade_id);
 """
 
 
@@ -123,6 +159,29 @@ def insert_rows(table: str, rows: list[dict]) -> int:
     with get_conn() as conn:
         cursor = conn.executemany(sql, rows)
         return cursor.rowcount
+
+
+def insert_congress_trades(rows: list[dict]) -> list[dict]:
+    """Same INSERT OR IGNORE semantics as insert_rows, but returns the full
+    row (including the generated id) for every row actually inserted, so
+    app/alerts.py knows exactly which congress trades are new — a plain
+    inserted-count can't distinguish "these 3 rows" from "some other 3 rows"
+    for the purpose of matching against watchlists.
+    Executed one row at a time (rather than executemany) because sqlite3
+    doesn't support fetching RETURNING results from an executemany call."""
+    if not rows:
+        return []
+    columns = list(rows[0].keys())
+    placeholders = ", ".join(f":{c}" for c in columns)
+    column_list = ", ".join(columns)
+    sql = f"INSERT OR IGNORE INTO congress_trades ({column_list}) VALUES ({placeholders}) RETURNING *"
+    inserted: list[dict] = []
+    with get_conn() as conn:
+        for row in rows:
+            result = conn.execute(sql, row).fetchone()
+            if result is not None:
+                inserted.append(dict(result))
+    return inserted
 
 
 def _build_where(
@@ -309,3 +368,123 @@ def get_position_changes(change_type: str | None = None, limit: int = 50, offset
     changes.sort(key=sort_key, reverse=True)
     total = len(changes)
     return changes[offset:offset + limit], total
+
+
+def upsert_user(user_id: str, email: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO users (id, email, created_at, updated_at) VALUES (:id, :email, :now, :now)
+            ON CONFLICT(id) DO UPDATE SET email = excluded.email, updated_at = excluded.updated_at
+            """,
+            {"id": user_id, "email": email, "now": now},
+        )
+
+
+def add_watchlist_item(user_id: str, ticker: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO watchlist_items (user_id, ticker, created_at) VALUES (:user_id, :ticker, :created_at)",
+            {"user_id": user_id, "ticker": ticker, "created_at": datetime.now(timezone.utc).isoformat()},
+        )
+
+
+def remove_watchlist_item(user_id: str, ticker: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM watchlist_items WHERE user_id = :user_id AND ticker = :ticker",
+            {"user_id": user_id, "ticker": ticker},
+        )
+
+
+def list_watchlist_items(user_id: str) -> list[str]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker FROM watchlist_items WHERE user_id = :user_id ORDER BY ticker",
+            {"user_id": user_id},
+        ).fetchall()
+        return [row["ticker"] for row in rows]
+
+
+def get_watchlist_matches(tickers: list[str]) -> list[dict]:
+    """Every (user_id, email, ticker) with one of `tickers` on their watchlist —
+    used by app/alerts.py to find who to notify about a batch of new buys."""
+    if not tickers:
+        return []
+    placeholders = ", ".join(f":t{i}" for i in range(len(tickers)))
+    params = {f"t{i}": ticker for i, ticker in enumerate(tickers)}
+    sql = f"""
+        SELECT w.user_id AS user_id, u.email AS email, w.ticker AS ticker
+        FROM watchlist_items w
+        JOIN users u ON u.id = w.user_id
+        WHERE w.ticker IN ({placeholders})
+    """
+    with get_conn() as conn:
+        return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+
+def filter_unalerted(pairs: list[tuple[str, int]]) -> set[tuple[str, int]]:
+    """Given candidate (user_id, congress_trade_id) pairs, returns the subset
+    not already recorded in alerts_sent — the durable dedupe check that runs
+    BEFORE sending, so a crash/retry never double-emails someone."""
+    if not pairs:
+        return set()
+    trade_ids = list({trade_id for _, trade_id in pairs})
+    placeholders = ", ".join(f":i{i}" for i in range(len(trade_ids)))
+    params = {f"i{i}": trade_id for i, trade_id in enumerate(trade_ids)}
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT user_id, congress_trade_id FROM alerts_sent WHERE congress_trade_id IN ({placeholders})",
+            params,
+        ).fetchall()
+    already_sent = {(row["user_id"], row["congress_trade_id"]) for row in rows}
+    return {pair for pair in pairs if pair not in already_sent}
+
+
+def record_alerts_sent(pairs: list[tuple[str, int]]) -> None:
+    if not pairs:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    with get_conn() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO alerts_sent (user_id, congress_trade_id, sent_at) VALUES (?, ?, ?)",
+            [(user_id, trade_id, now) for user_id, trade_id in pairs],
+        )
+
+
+def list_alerts_for_user(user_id: str, limit: int = 50) -> list[dict]:
+    sql = """
+        SELECT a.sent_at AS sent_at, c.*
+        FROM alerts_sent a
+        JOIN congress_trades c ON c.id = a.congress_trade_id
+        WHERE a.user_id = :user_id
+        ORDER BY a.sent_at DESC
+        LIMIT :limit
+    """
+    with get_conn() as conn:
+        rows = conn.execute(sql, {"user_id": user_id, "limit": limit}).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_unread_alert_count(user_id: str) -> int:
+    """Alerts sent since the user's last visit to the watchlist page — a NULL
+    last_alerts_seen_at (never visited) counts every alert as unread."""
+    sql = """
+        SELECT COUNT(*) AS count
+        FROM alerts_sent a
+        JOIN users u ON u.id = a.user_id
+        WHERE a.user_id = :user_id
+          AND (u.last_alerts_seen_at IS NULL OR a.sent_at > u.last_alerts_seen_at)
+    """
+    with get_conn() as conn:
+        row = conn.execute(sql, {"user_id": user_id}).fetchone()
+        return row["count"] if row else 0
+
+
+def mark_alerts_seen(user_id: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET last_alerts_seen_at = :now WHERE id = :user_id",
+            {"now": datetime.now(timezone.utc).isoformat(), "user_id": user_id},
+        )

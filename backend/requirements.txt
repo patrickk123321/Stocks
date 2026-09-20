@@ -6,3 +6,4 @@ pdfplumber
 apscheduler
 tzdata
 pytest
+pyjwt[crypto]

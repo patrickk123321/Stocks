@@ -35,6 +35,7 @@ import {
   renderCell,
 } from "../lib/tradeFormat";
 import StatTiles from "./StatTiles";
+import WatchlistButton from "./WatchlistButton";
 
 export interface Column {
   key: string;
@@ -595,6 +596,7 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-4">
+                    {tickerLinks && ticker && <WatchlistButton ticker={ticker} />}
                     <div className="text-right">
                       {summary.metaKey && (
                         <p className="font-mono text-xs text-card-foreground">
