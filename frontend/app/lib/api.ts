@@ -162,7 +162,16 @@ async function authedFetch(path: string, getToken: GetToken, init: RequestInit =
   const token = await getToken();
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  return apiFetch(path, { ...init, headers });
+  const res = await apiFetch(path, { ...init, headers });
+  if (!res.ok) {
+    const body = await res.clone().text();
+    // Surfaced to the console (rather than just the generic "Failed to..." Error
+    // thrown by each caller below) so the exact backend rejection reason —
+    // missing/invalid token vs. something else — is visible without digging
+    // through the Network tab.
+    console.error(`[watchlist] ${path} -> ${res.status} ${body} (had token: ${Boolean(token)})`);
+  }
+  return res;
 }
 
 export interface WatchlistAlert {
