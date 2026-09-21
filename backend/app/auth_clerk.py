@@ -63,7 +63,11 @@ def get_current_user(authorization: str | None = Header(default=None)) -> dict:
         signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
         claims = jwt.decode(token, signing_key.key, algorithms=["RS256"], options={"verify_aud": False})
     except Exception as exc:
-        raise HTTPException(status_code=401, detail="Invalid or expired session token.") from exc
+        # Temporarily includes the real exception (class + message) instead of a
+        # generic "Invalid or expired session token." — a production 401 here
+        # gave no signal on *why* verification failed (expired vs. bad signature
+        # vs. JWKS lookup failure), which blocked diagnosing the watchlist outage.
+        raise HTTPException(status_code=401, detail=f"Session token verification failed: {type(exc).__name__}: {exc}") from exc
 
     user_id = claims.get("sub")
     if not user_id:
