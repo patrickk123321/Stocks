@@ -158,20 +158,24 @@ export async function fetchPositionChanges(
 // these attach a Clerk bearer token — everything above stays unauthenticated.
 export type GetToken = () => Promise<string | null>;
 
-async function authedFetch(path: string, getToken: GetToken, init: RequestInit = {}): Promise<Response> {
+// Throws a message carrying the actual backend response (status + body) or
+// parse failure, rather than a generic "Failed to..." — surfaced directly in
+// the watchlist page's error banner so the real cause is visible without
+// needing DevTools.
+async function authedJson<T>(path: string, getToken: GetToken, init: RequestInit = {}): Promise<T> {
   const token = await getToken();
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const res = await apiFetch(path, { ...init, headers });
+  const text = await res.text();
   if (!res.ok) {
-    const body = await res.clone().text();
-    // Surfaced to the console (rather than just the generic "Failed to..." Error
-    // thrown by each caller below) so the exact backend rejection reason —
-    // missing/invalid token vs. something else — is visible without digging
-    // through the Network tab.
-    console.error(`[watchlist] ${path} -> ${res.status} ${body} (had token: ${Boolean(token)})`);
+    throw new Error(`${path} -> ${res.status}: ${text || "(empty body)"} (token attached: ${Boolean(token)})`);
   }
-  return res;
+  try {
+    return text ? (JSON.parse(text) as T) : (undefined as T);
+  } catch {
+    throw new Error(`${path} -> ${res.status}: response wasn't valid JSON: ${text.slice(0, 200)}`);
+  }
 }
 
 export interface WatchlistAlert {
@@ -185,45 +189,36 @@ export interface WatchlistAlert {
 }
 
 export async function fetchWatchlist(getToken: GetToken): Promise<string[]> {
-  const res = await authedFetch("/api/watchlist", getToken);
-  if (!res.ok) throw new Error(`Failed to fetch watchlist: ${res.status}`);
-  const data = await res.json();
+  const data = await authedJson<{ tickers: string[] }>("/api/watchlist", getToken);
   return data.tickers;
 }
 
 export async function addToWatchlist(ticker: string, getToken: GetToken): Promise<string[]> {
-  const res = await authedFetch("/api/watchlist", getToken, {
+  const data = await authedJson<{ tickers: string[] }>("/api/watchlist", getToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ticker }),
   });
-  if (!res.ok) throw new Error(`Failed to add ${ticker} to watchlist: ${res.status}`);
-  const data = await res.json();
   return data.tickers;
 }
 
 export async function removeFromWatchlist(ticker: string, getToken: GetToken): Promise<string[]> {
-  const res = await authedFetch(`/api/watchlist/${encodeURIComponent(ticker)}`, getToken, { method: "DELETE" });
-  if (!res.ok) throw new Error(`Failed to remove ${ticker} from watchlist: ${res.status}`);
-  const data = await res.json();
+  const data = await authedJson<{ tickers: string[] }>(`/api/watchlist/${encodeURIComponent(ticker)}`, getToken, {
+    method: "DELETE",
+  });
   return data.tickers;
 }
 
 export async function fetchWatchlistAlerts(getToken: GetToken): Promise<WatchlistAlert[]> {
-  const res = await authedFetch("/api/watchlist/alerts", getToken);
-  if (!res.ok) throw new Error(`Failed to fetch watchlist alerts: ${res.status}`);
-  const data = await res.json();
+  const data = await authedJson<{ alerts: WatchlistAlert[] }>("/api/watchlist/alerts", getToken);
   return data.alerts;
 }
 
 export async function fetchUnreadAlertCount(getToken: GetToken): Promise<number> {
-  const res = await authedFetch("/api/watchlist/alerts/unread-count", getToken);
-  if (!res.ok) throw new Error(`Failed to fetch unread alert count: ${res.status}`);
-  const data = await res.json();
+  const data = await authedJson<{ count: number }>("/api/watchlist/alerts/unread-count", getToken);
   return data.count;
 }
 
 export async function markAlertsSeen(getToken: GetToken): Promise<void> {
-  const res = await authedFetch("/api/watchlist/alerts/seen", getToken, { method: "POST" });
-  if (!res.ok) throw new Error(`Failed to mark alerts seen: ${res.status}`);
+  await authedJson<{ count: number }>("/api/watchlist/alerts/seen", getToken, { method: "POST" });
 }
