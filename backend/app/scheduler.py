@@ -21,7 +21,13 @@ logger = logging.getLogger("stocks.scheduler")
 # "9:00am/9:00pm Eastern" to 9:00am/9:00pm UTC (4-5 hours early) instead.
 EASTERN = ZoneInfo("America/New_York")
 
-DAILY_LOOKBACK_DAYS = 7
+# Congress refreshes 3x/day (11am/3pm/7pm ET, ~4-8 hours apart) — this window only
+# needs to cover the gap since the last run, not a full week. It was 7, which made
+# every run re-fetch and re-parse up to 7 days of already-seen PTR PDFs (the DB's
+# INSERT OR IGNORE dedupes the writes, but not the network fetch + parsing work),
+# tripling Railway's CPU/egress usage for no benefit. 2 days leaves a comfortable
+# margin for a missed run or a slow weekend without reintroducing that waste.
+DAILY_LOOKBACK_DAYS = 2
 
 # One failed 9am run used to mean a full day of staleness with no recovery
 # attempt — a transient network blip against SEC/House Clerk/FMP shouldn't cost
