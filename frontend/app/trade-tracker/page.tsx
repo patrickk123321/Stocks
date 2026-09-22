@@ -99,6 +99,7 @@ const SUMMARY: Record<Category, SummaryConfig> = {
     metaKey: "value",
     metaLabel: "Value",
     metaFormat: "currency",
+    actorFavoriteType: "institution",
     sourceLabel: "SEC EDGAR — Form 13F-HR filing",
     sourceNote:
       "Read directly from the SEC's structured EDGAR filing feed (not a PDF or text extraction) — the most reliable source in this app.",
@@ -114,6 +115,7 @@ const SUMMARY: Record<Category, SummaryConfig> = {
     dateKey: "transaction_date",
     metaKey: "amount_range",
     metaLabel: "Amount",
+    actorFavoriteType: "congress",
     // House and Senate rows come from genuinely different sources with different
     // reliability — sourceFor gives each row its own accurate label instead of
     // papering over the difference with one generic category-level claim.

@@ -10,7 +10,7 @@ identified as "the .xml document that isn't primary_doc.xml".
 import logging
 import xml.etree.ElementTree as ET
 
-from app.db import insert_rows
+from app.db import insert_new_rows
 from app.sources.edgar_common import (
     fetch_recent_filings,
     filing_documents,
@@ -59,8 +59,14 @@ def _parse_info_table(xml_bytes: bytes, accession_no: str, filer_name: str | Non
     return rows
 
 
-def refresh_13f(count: int = 50) -> tuple[int, int]:
+def refresh_13f(count: int = 50, on_new_rows=None) -> tuple[int, int]:
     """Fetches the latest 13F-HR filings and stores their holdings.
+
+    `on_new_rows`, if given, is called with the list of newly-inserted row
+    dicts (not just a count) after each filing is processed — used by the
+    scheduler to feed app/alerts.py's institution-favorite check, same
+    pattern as sources/congress_trades.py's refresh_congress_trades.
+
     Returns (rows inserted, filings that failed to fetch/parse)."""
     with sec_client() as client:
         filings = fetch_recent_filings("13F-HR", count, client)
@@ -104,5 +110,8 @@ def refresh_13f(count: int = 50) -> tuple[int, int]:
                 logger.warning("failed to fetch/parse info table for accession %s", filing["accession_no"], exc_info=True)
                 error_count += 1
                 continue
-            total_inserted += insert_rows("institutional_holdings", rows)
+            new_rows = insert_new_rows("institutional_holdings", rows)
+            if on_new_rows and new_rows:
+                on_new_rows(new_rows)
+            total_inserted += len(new_rows)
         return total_inserted, error_count

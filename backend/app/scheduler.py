@@ -72,9 +72,16 @@ def run_insider_refresh() -> None:
 
 
 def run_daily_refresh() -> None:
-    """Institutions (13F, quarterly data) — once-daily is plenty; unlike
-    congress trades, there's no buy-alert feature riding on this one."""
-    _run_refresh("institutions", refresh_13f, count=100)
+    """Institutions (13F, quarterly data) — once-daily is plenty, since new
+    filings only appear on a quarterly cadence rather than trickling in
+    throughout the day like congress PTRs. Every newly-inserted holding is
+    still handed to alerts.check_and_notify, same as congress below, so
+    favoriting an institution/hedge fund gets notified of its new 13F
+    disclosures without a separate alert job."""
+    new_rows: list[dict] = []
+    _run_refresh("institutions", refresh_13f, count=100, on_new_rows=new_rows.extend)
+    if new_rows:
+        check_and_notify("institutions", new_rows)
 
 
 def run_congress_refresh() -> None:
@@ -91,7 +98,7 @@ def run_congress_refresh() -> None:
         year=date.today().year, since_date=since, on_new_rows=new_rows.extend,
     )
     if new_rows:
-        check_and_notify(new_rows)
+        check_and_notify("congress", new_rows)
 
 
 def start_scheduler() -> BackgroundScheduler:

@@ -26,7 +26,7 @@ import httpx
 import pdfplumber
 
 from app.config import HOUSE_CLERK_USER_AGENT
-from app.db import insert_congress_trades
+from app.db import insert_new_rows
 from app.sources.senate_trades import FmpNotConfiguredError, refresh_senate_trades
 
 logger = logging.getLogger("stocks.sources.congress_trades")
@@ -278,7 +278,7 @@ def refresh_congress_trades(
                 }
                 for trade_row in trade_rows
             ]
-            new_rows = insert_congress_trades(rows)
+            new_rows = insert_new_rows("congress_trades", rows)
             if on_new_rows and new_rows:
                 on_new_rows(new_rows)
             total_inserted += len(new_rows)

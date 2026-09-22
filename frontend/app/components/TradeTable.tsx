@@ -16,6 +16,7 @@ import type { ReadonlyURLSearchParams } from "next/navigation";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ActorType,
   BackendUnreachableError,
   Category,
   ScrapeStatus,
@@ -34,6 +35,7 @@ import {
   formatRelativeTime,
   renderCell,
 } from "../lib/tradeFormat";
+import ActorWatchlistButton from "./ActorWatchlistButton";
 import WatchlistButton from "./WatchlistButton";
 
 export interface Column {
@@ -77,6 +79,10 @@ export interface SummaryConfig {
   /** Overrides sourceLabel/sourceNote/sourceVerified per row when a category mixes
    * sources of differing reliability (e.g. congress: House PDF vs. Senate via FMP). */
   sourceFor?: (row: Record<string, unknown>) => RowSource;
+  /** When set, renders an ActorWatchlistButton next to the actor name so a
+   * congress member or institution can be followed directly from the row —
+   * omitted for insiders, which aren't a supported favoritable actor type. */
+  actorFavoriteType?: ActorType;
 }
 
 interface TradeTableProps {
@@ -559,16 +565,21 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
                       </span>
                     )}
                     <div className="min-w-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleActorClick(actor);
-                        }}
-                        title={`Show only ${actor}'s ${summary.actorLabel.toLowerCase()} activity`}
-                        className={`truncate text-left text-sm font-semibold text-card-foreground hover:underline ${categoryHoverTextClass} ${FOCUS_RING}`}
-                      >
-                        {actor}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleActorClick(actor);
+                          }}
+                          title={`Show only ${actor}'s ${summary.actorLabel.toLowerCase()} activity`}
+                          className={`min-w-0 truncate text-left text-sm font-semibold text-card-foreground hover:underline ${categoryHoverTextClass} ${FOCUS_RING}`}
+                        >
+                          {actor}
+                        </button>
+                        {summary.actorFavoriteType && (
+                          <ActorWatchlistButton actorType={summary.actorFavoriteType} actorName={actor} size={13} />
+                        )}
+                      </div>
                       <p className="truncate font-mono text-xs text-muted-foreground">
                         {ticker &&
                           (tickerLinks ? (

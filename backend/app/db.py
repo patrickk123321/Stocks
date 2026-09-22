@@ -107,20 +107,39 @@ CREATE TABLE IF NOT EXISTS watchlist_items (
     UNIQUE(user_id, ticker)
 );
 
+-- Favorited people/entities, separate from ticker favorites above.
+-- actor_type is 'congress' (matched against congress_trades.member_name) or
+-- 'institution' (matched against institutional_holdings.filer_name) --
+-- corporate insiders are deliberately not a supported actor_type here.
+CREATE TABLE IF NOT EXISTS watchlist_actors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    actor_type TEXT NOT NULL,
+    actor_name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(user_id, actor_type, actor_name)
+);
+
 -- Durable dedupe for watchlist alerts — an in-memory guard (like
 -- app/rate_limit.py's cooldown) would double-email a user across restarts.
+-- source + trade_id together identify the row that triggered the alert
+-- ('congress' -> congress_trades.id, 'institutions' -> institutional_holdings.id)
+-- since alerts can now come from either table (see app/alerts.py).
 CREATE TABLE IF NOT EXISTS alerts_sent (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
-    congress_trade_id INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    trade_id INTEGER NOT NULL,
     sent_at TEXT NOT NULL,
-    UNIQUE(user_id, congress_trade_id)
+    UNIQUE(user_id, source, trade_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_watchlist_items_user ON watchlist_items(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_items_ticker ON watchlist_items(ticker);
+CREATE INDEX IF NOT EXISTS idx_watchlist_actors_user ON watchlist_actors(user_id);
+CREATE INDEX IF NOT EXISTS idx_watchlist_actors_lookup ON watchlist_actors(actor_type, actor_name);
 CREATE INDEX IF NOT EXISTS idx_alerts_sent_user ON alerts_sent(user_id, sent_at DESC);
-CREATE INDEX IF NOT EXISTS idx_alerts_sent_trade ON alerts_sent(congress_trade_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_sent_trade ON alerts_sent(source, trade_id);
 """
 
 
@@ -147,6 +166,19 @@ def init_db():
     with get_conn() as conn:
         conn.executescript(SCHEMA)
         _ensure_column(conn, "insider_transactions", "filer_cik", "TEXT")
+        _migrate_alerts_sent_to_generic_source(conn)
+
+
+def _migrate_alerts_sent_to_generic_source(conn: sqlite3.Connection) -> None:
+    """alerts_sent originally hardcoded congress_trade_id, back when congress was
+    the only alert source. Institutions alerts (actor favorites) need it to
+    reference either table, so this renames that column to a generic trade_id
+    and adds a source column, backfilling existing rows as 'congress' (the
+    only source that ever existed before this migration)."""
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(alerts_sent)")}
+    if "congress_trade_id" in existing and "trade_id" not in existing:
+        conn.execute("ALTER TABLE alerts_sent RENAME COLUMN congress_trade_id TO trade_id")
+    _ensure_column(conn, "alerts_sent", "source", "TEXT NOT NULL DEFAULT 'congress'")
 
 
 def insert_rows(table: str, rows: list[dict]) -> int:
@@ -161,12 +193,13 @@ def insert_rows(table: str, rows: list[dict]) -> int:
         return cursor.rowcount
 
 
-def insert_congress_trades(rows: list[dict]) -> list[dict]:
+def insert_new_rows(table: str, rows: list[dict]) -> list[dict]:
     """Same INSERT OR IGNORE semantics as insert_rows, but returns the full
     row (including the generated id) for every row actually inserted, so
-    app/alerts.py knows exactly which congress trades are new — a plain
-    inserted-count can't distinguish "these 3 rows" from "some other 3 rows"
-    for the purpose of matching against watchlists.
+    app/alerts.py knows exactly which rows are new — a plain inserted-count
+    can't distinguish "these 3 rows" from "some other 3 rows" for the
+    purpose of matching against watchlists. Used for both congress_trades
+    and institutional_holdings, the two tables alerts can fire from.
     Executed one row at a time (rather than executemany) because sqlite3
     doesn't support fetching RETURNING results from an executemany call."""
     if not rows:
@@ -174,7 +207,7 @@ def insert_congress_trades(rows: list[dict]) -> list[dict]:
     columns = list(rows[0].keys())
     placeholders = ", ".join(f":{c}" for c in columns)
     column_list = ", ".join(columns)
-    sql = f"INSERT OR IGNORE INTO congress_trades ({column_list}) VALUES ({placeholders}) RETURNING *"
+    sql = f"INSERT OR IGNORE INTO {table} ({column_list}) VALUES ({placeholders}) RETURNING *"
     inserted: list[dict] = []
     with get_conn() as conn:
         for row in rows:
@@ -424,47 +457,156 @@ def get_watchlist_matches(tickers: list[str]) -> list[dict]:
         return [dict(row) for row in conn.execute(sql, params).fetchall()]
 
 
-def filter_unalerted(pairs: list[tuple[str, int]]) -> set[tuple[str, int]]:
-    """Given candidate (user_id, congress_trade_id) pairs, returns the subset
-    not already recorded in alerts_sent — the durable dedupe check that runs
-    BEFORE sending, so a crash/retry never double-emails someone."""
+def filter_unalerted(source: str, pairs: list[tuple[str, int]]) -> set[tuple[str, int]]:
+    """Given candidate (user_id, trade_id) pairs for a given source ('congress'
+    or 'institutions'), returns the subset not already recorded in
+    alerts_sent — the durable dedupe check that runs BEFORE sending, so a
+    crash/retry never double-emails someone."""
     if not pairs:
         return set()
     trade_ids = list({trade_id for _, trade_id in pairs})
     placeholders = ", ".join(f":i{i}" for i in range(len(trade_ids)))
     params = {f"i{i}": trade_id for i, trade_id in enumerate(trade_ids)}
+    params["source"] = source
     with get_conn() as conn:
         rows = conn.execute(
-            f"SELECT user_id, congress_trade_id FROM alerts_sent WHERE congress_trade_id IN ({placeholders})",
+            f"SELECT user_id, trade_id FROM alerts_sent WHERE source = :source AND trade_id IN ({placeholders})",
             params,
         ).fetchall()
-    already_sent = {(row["user_id"], row["congress_trade_id"]) for row in rows}
+    already_sent = {(row["user_id"], row["trade_id"]) for row in rows}
     return {pair for pair in pairs if pair not in already_sent}
 
 
-def record_alerts_sent(pairs: list[tuple[str, int]]) -> None:
+def record_alerts_sent(source: str, pairs: list[tuple[str, int]]) -> None:
     if not pairs:
         return
     now = datetime.now(timezone.utc).isoformat()
     with get_conn() as conn:
         conn.executemany(
-            "INSERT OR IGNORE INTO alerts_sent (user_id, congress_trade_id, sent_at) VALUES (?, ?, ?)",
-            [(user_id, trade_id, now) for user_id, trade_id in pairs],
+            "INSERT OR IGNORE INTO alerts_sent (user_id, source, trade_id, sent_at) VALUES (?, ?, ?, ?)",
+            [(user_id, source, trade_id, now) for user_id, trade_id in pairs],
         )
 
 
 def list_alerts_for_user(user_id: str, limit: int = 50) -> list[dict]:
+    """Congress- and institutions-sourced alerts have incompatible row shapes
+    (different columns), so they're queried separately and merged in Python
+    rather than a SQL UNION — each result is tagged with `source` so the
+    frontend knows which shape it's rendering."""
+    with get_conn() as conn:
+        congress_rows = conn.execute(
+            """
+            SELECT a.sent_at AS sent_at, 'congress' AS source, c.*
+            FROM alerts_sent a
+            JOIN congress_trades c ON c.id = a.trade_id
+            WHERE a.user_id = :user_id AND a.source = 'congress'
+            """,
+            {"user_id": user_id},
+        ).fetchall()
+        institution_rows = conn.execute(
+            """
+            SELECT a.sent_at AS sent_at, 'institutions' AS source, i.*
+            FROM alerts_sent a
+            JOIN institutional_holdings i ON i.id = a.trade_id
+            WHERE a.user_id = :user_id AND a.source = 'institutions'
+            """,
+            {"user_id": user_id},
+        ).fetchall()
+    combined = [dict(row) for row in congress_rows] + [dict(row) for row in institution_rows]
+    combined.sort(key=lambda row: row["sent_at"], reverse=True)
+    return combined[:limit]
+
+
+def add_watchlist_actor(user_id: str, actor_type: str, actor_name: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO watchlist_actors (user_id, actor_type, actor_name, created_at)
+            VALUES (:user_id, :actor_type, :actor_name, :created_at)
+            """,
+            {
+                "user_id": user_id, "actor_type": actor_type, "actor_name": actor_name,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+
+def remove_watchlist_actor(user_id: str, actor_type: str, actor_name: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM watchlist_actors WHERE user_id = :user_id AND actor_type = :actor_type AND actor_name = :actor_name",
+            {"user_id": user_id, "actor_type": actor_type, "actor_name": actor_name},
+        )
+
+
+def list_watchlist_actors(user_id: str) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT actor_type, actor_name FROM watchlist_actors WHERE user_id = :user_id ORDER BY actor_name",
+            {"user_id": user_id},
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_watchlist_actor_matches(actor_type: str, names: list[str]) -> list[dict]:
+    """Every (user_id, email, actor_name) favoriting one of `names` as `actor_type`
+    — used by app/alerts.py to find who to notify about a batch of new
+    congress/institution activity, mirroring get_watchlist_matches for tickers."""
+    if not names:
+        return []
+    placeholders = ", ".join(f":n{i}" for i in range(len(names)))
+    params = {f"n{i}": name for i, name in enumerate(names)}
+    params["actor_type"] = actor_type
+    sql = f"""
+        SELECT w.user_id AS user_id, u.email AS email, w.actor_name AS actor_name
+        FROM watchlist_actors w
+        JOIN users u ON u.id = w.user_id
+        WHERE w.actor_type = :actor_type AND w.actor_name IN ({placeholders})
+    """
+    with get_conn() as conn:
+        return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+
+def search_tickers(q: str, limit: int = 10) -> list[str]:
+    """Distinct tickers matching `q` (case-insensitive substring) across the two
+    tables that carry a real ticker symbol — institutional_holdings only has
+    CUSIP, so it's excluded. Backs the Watchlist page's stock search."""
+    if not q.strip():
+        return []
+    pattern = f"%{q.strip()}%"
     sql = """
-        SELECT a.sent_at AS sent_at, c.*
-        FROM alerts_sent a
-        JOIN congress_trades c ON c.id = a.congress_trade_id
-        WHERE a.user_id = :user_id
-        ORDER BY a.sent_at DESC
+        SELECT DISTINCT ticker FROM (
+            SELECT issuer_ticker AS ticker FROM insider_transactions WHERE issuer_ticker LIKE :pattern COLLATE NOCASE
+            UNION
+            SELECT ticker FROM congress_trades WHERE ticker LIKE :pattern COLLATE NOCASE
+        )
+        WHERE ticker IS NOT NULL AND ticker != ''
+        ORDER BY ticker
         LIMIT :limit
     """
     with get_conn() as conn:
-        rows = conn.execute(sql, {"user_id": user_id, "limit": limit}).fetchall()
-        return [dict(row) for row in rows]
+        rows = conn.execute(sql, {"pattern": pattern, "limit": limit}).fetchall()
+        return [row["ticker"] for row in rows]
+
+
+def search_actors(actor_type: str, q: str, limit: int = 10) -> list[str]:
+    """Distinct congress member or institution filer names matching `q`
+    (case-insensitive substring). Backs the Watchlist page's people search."""
+    if not q.strip():
+        return []
+    column, table = (
+        ("member_name", "congress_trades") if actor_type == "congress" else ("filer_name", "institutional_holdings")
+    )
+    pattern = f"%{q.strip()}%"
+    sql = f"""
+        SELECT DISTINCT {column} AS name FROM {table}
+        WHERE {column} LIKE :pattern COLLATE NOCASE AND {column} IS NOT NULL AND {column} != ''
+        ORDER BY {column}
+        LIMIT :limit
+    """
+    with get_conn() as conn:
+        rows = conn.execute(sql, {"pattern": pattern, "limit": limit}).fetchall()
+        return [row["name"] for row in rows]
 
 
 def get_unread_alert_count(user_id: str) -> int:

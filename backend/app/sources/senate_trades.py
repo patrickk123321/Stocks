@@ -38,7 +38,7 @@ import re
 import httpx
 
 from app.config import FMP_API_KEY
-from app.db import insert_congress_trades
+from app.db import insert_new_rows
 
 logger = logging.getLogger("stocks.sources.senate_trades")
 
@@ -114,7 +114,7 @@ def refresh_senate_trades(on_new_rows=None) -> tuple[int, int]:
             continue
         rows.append(row)
 
-    new_rows = insert_congress_trades(rows)
+    new_rows = insert_new_rows("congress_trades", rows)
     if on_new_rows and new_rows:
         on_new_rows(new_rows)
     return len(new_rows), error_count

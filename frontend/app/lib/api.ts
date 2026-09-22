@@ -178,13 +178,32 @@ async function authedJson<T>(path: string, getToken: GetToken, init: RequestInit
   }
 }
 
+export type ActorType = "congress" | "institution";
+
+export interface WatchlistActor {
+  actor_type: ActorType;
+  actor_name: string;
+}
+
 export interface WatchlistAlert {
   sent_at: string;
-  ticker: string;
-  member_name: string;
-  chamber: string;
-  transaction_date: string;
-  amount_range: string;
+  // 'congress' rows carry ticker/member/chamber/transaction fields; 'institutions'
+  // rows (13F, no discrete transactions) carry filer/issuer/value fields instead —
+  // see backend/app/db.py's list_alerts_for_user for why these are queried and
+  // shaped separately rather than forced into one common set of columns.
+  source: "congress" | "institutions";
+  ticker?: string;
+  member_name?: string;
+  chamber?: string;
+  transaction_date?: string;
+  transaction_type?: string;
+  amount_range?: string;
+  filer_name?: string;
+  issuer_name?: string;
+  cusip?: string;
+  value?: number;
+  shares?: number;
+  period_of_report?: string;
   [key: string]: unknown;
 }
 
@@ -221,4 +240,45 @@ export async function fetchUnreadAlertCount(getToken: GetToken): Promise<number>
 
 export async function markAlertsSeen(getToken: GetToken): Promise<void> {
   await authedJson<{ count: number }>("/api/watchlist/alerts/seen", getToken, { method: "POST" });
+}
+
+// Search calls need no identity — they're read-only lookups against already-public
+// trade data — so they use apiFetch directly rather than authedJson.
+export async function searchTickers(q: string): Promise<string[]> {
+  if (!q.trim()) return [];
+  const res = await apiFetch(`/api/watchlist/search/tickers?q=${encodeURIComponent(q)}`);
+  if (!res.ok) throw new Error(`Failed to search tickers: ${res.status}`);
+  const data = await res.json();
+  return data.tickers;
+}
+
+export async function searchActors(actorType: ActorType, q: string): Promise<string[]> {
+  if (!q.trim()) return [];
+  const res = await apiFetch(`/api/watchlist/search/actors?type=${actorType}&q=${encodeURIComponent(q)}`);
+  if (!res.ok) throw new Error(`Failed to search actors: ${res.status}`);
+  const data = await res.json();
+  return data.names;
+}
+
+export async function fetchWatchlistActors(getToken: GetToken): Promise<WatchlistActor[]> {
+  const data = await authedJson<{ actors: WatchlistActor[] }>("/api/watchlist/actors", getToken);
+  return data.actors;
+}
+
+export async function addWatchlistActor(actorType: ActorType, actorName: string, getToken: GetToken): Promise<WatchlistActor[]> {
+  const data = await authedJson<{ actors: WatchlistActor[] }>("/api/watchlist/actors", getToken, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actor_type: actorType, actor_name: actorName }),
+  });
+  return data.actors;
+}
+
+export async function removeWatchlistActor(actorType: ActorType, actorName: string, getToken: GetToken): Promise<WatchlistActor[]> {
+  const data = await authedJson<{ actors: WatchlistActor[] }>(
+    `/api/watchlist/actors/${actorType}/${encodeURIComponent(actorName)}`,
+    getToken,
+    { method: "DELETE" },
+  );
+  return data.actors;
 }
