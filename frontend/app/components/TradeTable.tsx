@@ -34,7 +34,6 @@ import {
   formatRelativeTime,
   renderCell,
 } from "../lib/tradeFormat";
-import StatTiles from "./StatTiles";
 import WatchlistButton from "./WatchlistButton";
 
 export interface Column {
@@ -342,39 +341,25 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           <label htmlFor={`date-from-${category}`} className="text-muted-foreground">
             From
           </label>
-          <div className="relative">
-            <input
-              id={`date-from-${category}`}
-              type="date"
-              value={filters.dateFrom}
-              onChange={(e) => load({ ...filters, dateFrom: e.target.value })}
-              className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
-            />
-            {!filters.dateFrom && (
-              <span className="pointer-events-none absolute inset-px flex items-center rounded-md bg-card px-2 text-xs text-muted-foreground/85">
-                Any date
-              </span>
-            )}
-          </div>
+          <input
+            id={`date-from-${category}`}
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => load({ ...filters, dateFrom: e.target.value })}
+            className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+          />
         </div>
         <div className="flex items-center gap-1.5 text-xs">
           <label htmlFor={`date-to-${category}`} className="text-muted-foreground">
             To
           </label>
-          <div className="relative">
-            <input
-              id={`date-to-${category}`}
-              type="date"
-              value={filters.dateTo}
-              onChange={(e) => load({ ...filters, dateTo: e.target.value })}
-              className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
-            />
-            {!filters.dateTo && (
-              <span className="pointer-events-none absolute inset-px flex items-center rounded-md bg-card px-2 text-xs text-muted-foreground/85">
-                Any date
-              </span>
-            )}
-          </div>
+          <input
+            id={`date-to-${category}`}
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => load({ ...filters, dateTo: e.target.value })}
+            className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+          />
         </div>
 
         {(filters.dateFrom || filters.dateTo) && (
@@ -427,8 +412,6 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
           <span>{exportNotice.message}</span>
         </div>
       )}
-
-      {!loading && !error && rows.length > 0 && <StatTiles total={total} rows={rows} summary={summary} />}
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
