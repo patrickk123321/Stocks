@@ -44,6 +44,12 @@ export interface Column {
    * together under one heading instead of one flat 7-9-item grid. Fields with no group render
    * ungrouped, at the end. */
   group?: string;
+  /** Offered as a "Sort by" option — deliberately opt-in, not every column. A sort only
+   * earns a spot here if it surfaces something "Most recent" doesn't: real magnitude
+   * (Shares, Price, Value), not an alphabetical sort on a name/category field nobody
+   * practically wants (and never on a formatted-range field like amount_range, which
+   * sorts as text and gives a numerically meaningless order). */
+  sortable?: boolean;
 }
 
 export interface RowSource {
@@ -142,6 +148,8 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
   const categoryBorderClass = CATEGORY_BORDER_CLASS[category];
   const categoryTextClass = CATEGORY_TEXT_CLASS[category];
   const categoryHoverTextClass = CATEGORY_HOVER_TEXT_CLASS[category];
+
+  const sortableColumns = useMemo(() => columns.filter((col) => col.sortable), [columns]);
 
   // Clusters the expanded-row detail panel's fields under their `group` label (in first-seen
   // order) instead of one flat 7-9-item grid — see the Column.group doc comment above.
@@ -443,24 +451,26 @@ export default function TradeTable({ category, searchPlaceholder, columns, summa
         </div>
 
         <div className="flex items-center gap-2 text-xs">
-          <label htmlFor={`sort-${category}`} className="text-muted-foreground">
-            Sort by
-          </label>
-          <select
-            id={`sort-${category}`}
-            value={filters.sort ?? ""}
-            onChange={(e) => load({ ...filters, sort: e.target.value || undefined })}
-            className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
-          >
-            <option value="">Most recent</option>
-            <optgroup label="Column">
-              {columns.map((col) => (
-                <option key={col.key} value={col.key}>
-                  {col.label}
-                </option>
-              ))}
-            </optgroup>
-          </select>
+          {sortableColumns.length > 0 && (
+            <>
+              <label htmlFor={`sort-${category}`} className="text-muted-foreground">
+                Sort by
+              </label>
+              <select
+                id={`sort-${category}`}
+                value={filters.sort ?? ""}
+                onChange={(e) => load({ ...filters, sort: e.target.value || undefined })}
+                className={`cursor-pointer rounded-md border border-border-strong bg-card px-2 py-1.5 text-xs text-card-foreground outline-none focus:border-accent ${FOCUS_RING}`}
+              >
+                <option value="">Most recent</option>
+                {sortableColumns.map((col) => (
+                  <option key={col.key} value={col.key}>
+                    {col.label}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
           <button
             onClick={() => load({ ...filters, order: filters.order === "desc" ? "asc" : "desc" })}
             aria-label={filters.order === "asc" ? "Sort descending" : "Sort ascending"}
