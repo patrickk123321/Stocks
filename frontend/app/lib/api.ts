@@ -159,9 +159,9 @@ export async function fetchPositionChanges(
 export type GetToken = () => Promise<string | null>;
 
 // Throws a message carrying the actual backend response (status + body) or
-// parse failure, rather than a generic "Failed to..." — surfaced directly in
-// the watchlist page's error banner so the real cause is visible without
-// needing DevTools.
+// parse failure, rather than a generic "Failed to..." — the caller decides
+// how much of that to show the user; useful in the console/error logs
+// either way.
 async function authedJson<T>(path: string, getToken: GetToken, init: RequestInit = {}): Promise<T> {
   const token = await getToken();
   const headers = new Headers(init.headers);

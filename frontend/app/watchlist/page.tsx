@@ -29,7 +29,7 @@ export default function WatchlistPage() {
           .then(() => window.dispatchEvent(new Event("watchlist-alerts-seen")))
           .catch(() => {});
       })
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .catch(() => setError("Couldn't load your watchlist. Try reloading the page."))
       .finally(() => setLoading(false));
   }, [isSignedIn, getToken]);
 
